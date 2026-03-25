@@ -55,6 +55,30 @@ async function startServer() {
     res.json(simulationData);
   });
 
+  // System Health & Logging Endpoints
+  let systemLogs: any[] = [];
+  let systemHealth: any = { score: 100, status: "OK", lastUpdate: new Date().toISOString() };
+
+  app.get("/api/system/health", (req, res) => {
+    res.json(systemHealth);
+  });
+
+  app.post("/api/system/health", authMiddleware, (req, res) => {
+    systemHealth = { ...req.body, lastUpdate: new Date().toISOString() };
+    res.json({ status: "updated" });
+  });
+
+  app.get("/api/system/logs", (req, res) => {
+    res.json(systemLogs.slice(-100));
+  });
+
+  app.post("/api/system/logs", authMiddleware, (req, res) => {
+    const log = { ...req.body, serverTimestamp: new Date().toISOString() };
+    systemLogs.push(log);
+    if (systemLogs.length > 500) systemLogs.shift();
+    res.json({ status: "logged" });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

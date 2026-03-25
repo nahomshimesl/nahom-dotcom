@@ -13,9 +13,10 @@ import ControlPanel from './components/ControlPanel';
 import GeneticEditor from './components/GeneticEditor';
 import HealthDashboard from './components/HealthDashboard';
 import FullStackSimulation from './components/FullStackSimulation';
+import SystemInspector from './components/SystemInspector';
 import ErrorBoundary from './components/ErrorBoundary';
 import { motion, AnimatePresence } from 'motion/react';
-import { Microscope, Database, BrainCircuit, Network, Zap, Activity, ShieldAlert, Save, Trash2, LogIn, LogOut, Dna, Check, X, AlertTriangle, ArrowUpDown, Search, FlaskConical } from 'lucide-react';
+import { Microscope, Database, BrainCircuit, Network, Zap, Activity, ShieldAlert, Save, Trash2, LogIn, LogOut, Dna, Check, X, AlertTriangle, ArrowUpDown, Search, FlaskConical, Terminal } from 'lucide-react';
 import { auth, db, googleProvider, signInWithPopup, signOut, collection, addDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area } from 'recharts';
@@ -60,6 +61,7 @@ export default function App() {
   const [logSortOrder, setLogSortOrder] = useState<'desc' | 'asc'>('desc');
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK'>('ALL');
   const [simulationSpeed, setSimulationSpeed] = useState(1);
+  const [showInspector, setShowInspector] = useState(false);
   
   const mutationCooldowns = useRef<Record<string, number>>({});
   const frameCount = useRef(0);
@@ -70,6 +72,9 @@ export default function App() {
 
   // 1. Initialize Simulation & Auth
   useEffect(() => {
+    // Initialize HealthEngine Backend
+    healthEngine.setBackendConfig(true, "organoid2026");
+
     const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsAuthReady(true);
@@ -1166,6 +1171,25 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      <AnimatePresence>
+        {showInspector && (
+          <SystemInspector 
+            health={health} 
+            onClose={() => setShowInspector(false)} 
+          />
+        )}
+      </AnimatePresence>
+
+      <button 
+        onClick={() => setShowInspector(true)}
+        className="fixed bottom-6 left-6 p-3 bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-full text-slate-400 hover:text-emerald-400 hover:border-emerald-500/50 shadow-2xl transition-all z-40 group"
+      >
+        <Terminal size={20} />
+        <span className="absolute left-full ml-3 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+          System Inspector
+        </span>
+      </button>
 
       {/* Right Control Panel */}
       <ControlPanel

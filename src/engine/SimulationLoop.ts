@@ -18,6 +18,51 @@ const BIO_DATA_POOL = [
 
 const PHI = 1.61803398875;
 
+/**
+ * SpatialGrid for optimizing neighbor lookups.
+ * Reduces O(N^2) distance calculations to O(N * K).
+ */
+class SpatialGrid {
+  private grid: Map<string, AgentState[]> = new Map();
+  private cellSize: number;
+
+  constructor(cellSize: number) {
+    this.cellSize = cellSize;
+  }
+
+  private getKey(x: number, y: number): string {
+    const gx = Math.floor(x / this.cellSize);
+    const gy = Math.floor(y / this.cellSize);
+    return `${gx},${gy}`;
+  }
+
+  insert(agent: AgentState) {
+    if (agent.x === undefined || agent.y === undefined) return;
+    const key = this.getKey(agent.x, agent.y);
+    if (!this.grid.has(key)) this.grid.set(key, []);
+    this.grid.get(key)!.push(agent);
+  }
+
+  query(x: number, y: number, radius: number): AgentState[] {
+    const results: AgentState[] = [];
+    const startX = Math.floor((x - radius) / this.cellSize);
+    const endX = Math.floor((x + radius) / this.cellSize);
+    const startY = Math.floor((y - radius) / this.cellSize);
+    const endY = Math.floor((y + radius) / this.cellSize);
+
+    for (let gx = startX; gx <= endX; gx++) {
+      for (let gy = startY; gy <= endY; gy++) {
+        const key = `${gx},${gy}`;
+        const cell = this.grid.get(key);
+        if (cell) {
+          results.push(...cell);
+        }
+      }
+    }
+    return results;
+  }
+}
+
 export function createInitialDNA(): ManagerDNA {
   return {
     version: 1,
@@ -88,6 +133,10 @@ export function processSimulationStep(
   const recursionLimit = Math.floor(getModifier('RECURSION_DEPTH') * 5);
   const adaptationSpeed = getModifier('ADAPTATION_SPEED') / PHI;
 
+  // Initialize Spatial Grid for optimization
+  const grid = new SpatialGrid(150); // Cell size matches max interaction radius
+  agents.forEach(a => grid.insert(a));
+
   const nextAgents = agents.map(agent => {
     // 1. Natural Decay (Modified by DNA and Phi Scaling)
     // Smooth transition: health changes follow a curve inspired by natural growth
@@ -105,6 +154,7 @@ export function processSimulationStep(
       .sort((a, b) => b.priority - a.priority);
 
     const newHistoryEntries: any[] = [];
+    const newMemoryEntries: string[] = [];
     let adaptedSensitivity = agent.sensitivity;
 
     incoming.forEach(signal => {
@@ -116,6 +166,9 @@ export function processSimulationStep(
         step: signal.step,
         payload: signal.payload,
       });
+
+      // Record in memory
+      newMemoryEntries.push(`Received ${signal.type} signal from ${signal.source.split('-')[0]} (Payload: ${signal.payload.toFixed(1)})`);
 
       // Adapt sensitivity: receiving critical/urgent signals increases sensitivity
       if (signal.priority >= SignalPriority.HIGH || signal.isUrgent) {
@@ -141,6 +194,7 @@ export function processSimulationStep(
 
     // Update signal history (limit to last 20 entries)
     const updatedHistory = [...newHistoryEntries, ...agent.signalHistory].slice(0, 20);
+    const updatedMemory = [...newMemoryEntries, ...agent.memory].slice(0, 10);
 
     // Calculate dynamic interaction radius
     // Base radius is 100, modified by health and signaling genes
@@ -155,13 +209,14 @@ export function processSimulationStep(
 
     // Metabolic Hubs generate ATP with recursive depth
     if (agent.type === OrganType.METABOLIC_HUB && health > 50 && energy > 20) {
-      // Spatial targeting: find agents within interaction radius
-      const potentialTargets = agents.filter(a => {
-        if (a.id === agent.id) return false;
-        if (!agent.x || !a.x) return true; // Fallback to random if no coordinates
-        const dist = Math.sqrt(Math.pow(a.x - agent.x, 2) + Math.pow(a.y - agent.y, 2));
-        return dist < nextInteractionRadius;
-      });
+      // Spatial targeting: find agents within interaction radius using Grid
+      const potentialTargets = (agent.x !== undefined && agent.y !== undefined)
+        ? grid.query(agent.x, agent.y, nextInteractionRadius).filter(a => {
+            if (a.id === agent.id) return false;
+            const distSq = Math.pow(a.x! - agent.x!, 2) + Math.pow(a.y! - agent.y!, 2);
+            return distSq < Math.pow(nextInteractionRadius, 2);
+          })
+        : agents.filter(a => a.id !== agent.id);
 
       const target = potentialTargets.length > 0 
         ? potentialTargets[Math.floor(Math.random() * potentialTargets.length)]
@@ -180,6 +235,7 @@ export function processSimulationStep(
           priority: SignalPriority.NORMAL,
           isUrgent: false,
         });
+        newMemoryEntries.push(`Generated ATP for ${target.name.split('-')[0]}`);
         energy -= 5;
       }
     }
@@ -191,12 +247,13 @@ export function processSimulationStep(
           // Urgent signals can propagate further (larger search radius)
           const relayRadius = nextInteractionRadius * (s.isUrgent ? 1.5 : 1.0);
           
-          const potentialTargets = agents.filter(a => {
-            if (a.id === agent.id || a.id === s.source) return false;
-            if (!agent.x || !a.x) return true;
-            const dist = Math.sqrt(Math.pow(a.x - agent.x, 2) + Math.pow(a.y - agent.y, 2));
-            return dist < relayRadius;
-          });
+          const potentialTargets = (agent.x !== undefined && agent.y !== undefined)
+            ? grid.query(agent.x, agent.y, relayRadius).filter(a => {
+                if (a.id === agent.id || a.id === s.source) return false;
+                const distSq = Math.pow(a.x! - agent.x!, 2) + Math.pow(a.y! - agent.y!, 2);
+                return distSq < Math.pow(relayRadius, 2);
+              })
+            : agents.filter(a => a.id !== agent.id && a.id !== s.source);
 
           const target = potentialTargets.length > 0 
             ? potentialTargets[Math.floor(Math.random() * potentialTargets.length)]
@@ -215,6 +272,7 @@ export function processSimulationStep(
             isUrgent: s.isUrgent,
             parentId: s.id, // Set parent ID for tracing
           });
+          newMemoryEntries.push(`Relayed ${s.type} to ${target.name.split('-')[0]}`);
         }
       });
     }
@@ -229,7 +287,7 @@ export function processSimulationStep(
         health: 100,
         energy: 100,
         sensitivity: 0.1 + Math.random() * 0.9,
-        memory: [],
+        memory: ['Reborn after metabolic failure'],
         signalHistory: [],
         phiPhase: 0,
         interactionRadius: 100,
@@ -245,12 +303,13 @@ export function processSimulationStep(
     if (health < 30 && energy > 10) {
       // Alerts have double the interaction radius
       const alertRadius = nextInteractionRadius * 2;
-      const neighbors = agents.filter(a => {
-        if (a.id === agent.id) return false;
-        if (!agent.x || !a.x) return true;
-        const dist = Math.sqrt(Math.pow(a.x - agent.x, 2) + Math.pow(a.y - agent.y, 2));
-        return dist < alertRadius;
-      }).slice(0, 5); // Alerts reach more neighbors
+      const neighbors = (agent.x !== undefined && agent.y !== undefined)
+        ? grid.query(agent.x, agent.y, alertRadius).filter(a => {
+            if (a.id === agent.id) return false;
+            const distSq = Math.pow(a.x! - agent.x!, 2) + Math.pow(a.y! - agent.y!, 2);
+            return distSq < Math.pow(alertRadius, 2);
+          }).slice(0, 5)
+        : agents.filter(a => a.id !== agent.id).slice(0, 5);
 
       neighbors.forEach(neighbor => {
         nextSignals.push({
@@ -265,6 +324,7 @@ export function processSimulationStep(
           priority: SignalPriority.CRITICAL,
           isUrgent: true,
         });
+        newMemoryEntries.push(`Sent EMERGENCY ALERT to ${neighbor.name.split('-')[0]}`);
       });
       energy -= 5;
     }
@@ -279,6 +339,7 @@ export function processSimulationStep(
       phiPhase: nextPhiPhase, 
       sensitivity: adaptedSensitivity,
       signalHistory: updatedHistory,
+      memory: updatedMemory,
       interactionRadius: nextInteractionRadius
     };
   });

@@ -44,8 +44,65 @@ export class HealthEngine {
 
   private incidentLog: HealthIncident[] = [];
   private systemLogs: SystemLog[] = [];
+  private backendEnabled = false;
+  private accessKey = "organoid2026";
 
-  constructor() {}
+  constructor() {
+    this.setupGlobalHandlers();
+  }
+
+  private setupGlobalHandlers() {
+    if (typeof window !== 'undefined') {
+      window.onerror = (message, source, lineno, colno, error) => {
+        this.reportExternalError('WindowRuntime', `Global Error: ${message}`, 'CRITICAL', {
+          source, lineno, colno, stack: error?.stack
+        });
+      };
+
+      window.onunhandledrejection = (event) => {
+        this.reportExternalError('PromiseRuntime', `Unhandled Rejection: ${event.reason}`, 'CRITICAL', {
+          reason: event.reason
+        });
+      };
+    }
+  }
+
+  public setBackendConfig(enabled: boolean, key: string) {
+    this.backendEnabled = enabled;
+    this.accessKey = key;
+  }
+
+  private async syncToBackend(log?: SystemLog) {
+    if (!this.backendEnabled) return;
+
+    try {
+      if (log) {
+        await fetch('/api/system/logs', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.accessKey}`
+          },
+          body: JSON.stringify(log)
+        });
+      }
+
+      await fetch('/api/system/health', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.accessKey}`
+        },
+        body: JSON.stringify({
+          score: this.state.overallScore,
+          status: this.state.overallScore > 70 ? "OK" : "DEGRADED",
+          activeIncidents: this.state.activeIncidents.length
+        })
+      });
+    } catch (e) {
+      console.warn("HealthEngine: Failed to sync with backend", e);
+    }
+  }
 
   public async reportExternalError(
     source: string,
@@ -65,6 +122,9 @@ export class HealthEngine {
 
     this.systemLogs.unshift(log);
     if (this.systemLogs.length > 100) this.systemLogs.pop();
+
+    // Sync to backend
+    await this.syncToBackend(log);
 
     // Trigger AI Diagnosis for Errors
     await this.diagnoseLog(log);
@@ -157,6 +217,11 @@ export class HealthEngine {
       systemLogs: [...this.systemLogs],
       history: [...this.state.history, { step: metrics.step, score: healthScore }].slice(-50)
     };
+
+    // Periodic backend sync
+    if (metrics.step % 50 === 0) {
+      await this.syncToBackend();
+    }
 
     return this.state;
   }
