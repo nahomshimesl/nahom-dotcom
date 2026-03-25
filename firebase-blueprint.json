@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "ResearchLog": {
+      "title": "Research Log",
+      "description": "A snapshot of the simulation state at a specific point in time.",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the log was created" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "totalAgents": { "type": "number" },
+            "averageHealth": { "type": "number" },
+            "failureRate": { "type": "number" },
+            "step": { "type": "number" }
+          }
+        },
+        "notes": { "type": "string", "description": "User notes for this snapshot" },
+        "uid": { "type": "string", "description": "The user who created the log" }
+      },
+      "required": ["timestamp", "metrics", "uid"]
+    }
+  },
+  "firestore": {
+    "/researchLogs/{logId}": {
+      "schema": "ResearchLog",
+      "description": "Collection of simulation snapshots saved by researchers."
+    }
+  }
+}

@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: researchLogs
+    // Document ID: auto-generated
+    // Fields:
+    //   - timestamp: string (required, ISO 8601) - When the log was created
+    //   - metrics: map (required) - Simulation metrics snapshot
+    //     - totalAgents: number
+    //     - averageHealth: number
+    //     - failureRate: number
+    //     - step: number
+    //   - notes: string (optional) - User notes
+    //   - uid: string (required) - The user who created the log
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is string && ts.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidMetrics(metrics) {
+      return metrics is map &&
+             metrics.totalAgents is number &&
+             metrics.averageHealth is number &&
+             metrics.failureRate is number &&
+             metrics.step is number;
+    }
+
+    // Domain Validator
+    function isValidResearchLog(data) {
+      return hasRequiredFields(['timestamp', 'metrics', 'uid']) &&
+             hasOnlyAllowedFields(['timestamp', 'metrics', 'uid', 'notes']) &&
+             isValidTimestamp(data.timestamp) &&
+             isValidMetrics(data.metrics) &&
+             data.uid == request.auth.uid &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 500));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /researchLogs/{logId} {
+      // Users can only see their own logs
+      allow read: if isDocOwner();
+      
+      // Users can only create logs for themselves with valid data
+      allow create: if isAuthenticated() && isValidResearchLog(request.resource.data);
+      
+      // Logs are immutable for now (no update allowed)
+      allow update: if false;
+      
+      // Users can delete their own logs
+      allow delete: if isDocOwner();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

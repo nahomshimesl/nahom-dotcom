@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-emerald-950 text-emerald-50;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-emerald-950;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-emerald-800 rounded-full hover:bg-emerald-700 transition-colors;
+}

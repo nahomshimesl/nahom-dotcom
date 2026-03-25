@@ -1,0 +1,78 @@
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json());
+
+  // Simple Password Protection Middleware
+  const APP_PASSWORD = process.env.APP_PASSWORD || "organoid2026";
+  
+  const authMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader === `Bearer ${APP_PASSWORD}`) {
+      next();
+    } else {
+      res.status(401).json({ error: "Unauthorized. Please provide the correct access key." });
+    }
+  };
+
+  // Biological Simulation Endpoint
+  app.post("/api/simulate", authMiddleware, (req, res) => {
+    const { glucose, oxygen, aminoAcids, temperature } = req.body;
+
+    // Simulation logic: Metabolic Flux Model
+    // Simple heuristic for biological complexity
+    const baseMetabolism = (glucose * 0.4) + (oxygen * 0.3) + (aminoAcids * 0.3);
+    const tempStress = Math.abs(temperature - 37) * 0.05;
+    const healthScore = Math.max(0, Math.min(100, (baseMetabolism * 10) - (tempStress * 20)));
+
+    const bottlenecks = [];
+    if (glucose < 3) bottlenecks.push("Hypoglycemic Stress");
+    if (oxygen < 5) bottlenecks.push("Hypoxic Environment");
+    if (aminoAcids < 2) bottlenecks.push("Protein Synthesis Limitation");
+    if (temperature > 40) bottlenecks.push("Thermal Denaturation Risk");
+    if (temperature < 35) bottlenecks.push("Metabolic Stasis");
+
+    const simulationData = {
+      healthScore,
+      bottlenecks,
+      fluxRate: (baseMetabolism / 10).toFixed(2),
+      timestamp: new Date().toISOString(),
+      parameters: { glucose, oxygen, aminoAcids, temperature }
+    };
+
+    res.json(simulationData);
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();

@@ -1,0 +1,5 @@
+{
+  "name": "Bio-Organoid Simulation System (BOSS)",
+  "description": "A research-grade simulation platform for biological ecosystems with a full-stack metabolic flux engine and AI failure prediction.",
+  "requestFramePermissions": []
+}
