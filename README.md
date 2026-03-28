@@ -1,7 +1,7 @@
 <img width="612" height="398" alt="image" src="https://github.com/user-attachments/assets/a0e244c7-9978-4607-9c09-0e3c9e123e6f" />
 
 
-
+ run in web https://ais-dev-o2o54thuyovllplpbyzkgo-324010202586.europe-west2.run.app
 
 ## Run Locally
 
