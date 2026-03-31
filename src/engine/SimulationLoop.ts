@@ -198,10 +198,12 @@ export function processSimulationStep(
 
     // Calculate dynamic interaction radius
     // Base radius is 100, modified by health and signaling genes
-    // Urgent states expand the radius
-    const isEmergency = health < 30;
+    // Low health expands radius for emergency signaling
+    // High energy slightly reduces radius for focused interactions
+    const healthMultiplier = health < 40 ? (1.0 + (40 - health) / 40) : 1.0;
+    const energyMultiplier = energy > 80 ? (1.0 - (energy - 80) / 600) : 1.0;
     const baseRadius = 100 * agent.parameters.phiScaling;
-    const nextInteractionRadius = baseRadius * (1 + (signalingMod * 0.5)) * (isEmergency ? 2.0 : 1.0);
+    const nextInteractionRadius = baseRadius * (1 + (signalingMod * 0.5)) * healthMultiplier * energyMultiplier;
 
     // 3. Agent Logic (Recursive & Phi-based)
     // Update Phi Phase for spiral movement/behavior
