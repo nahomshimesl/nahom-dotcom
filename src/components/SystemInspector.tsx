@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Terminal, Shield, Activity, X, AlertCircle, CheckCircle, Info, Bug, RefreshCw } from 'lucide-react';
+import { Terminal, Shield, Activity, X, AlertCircle, CheckCircle, Info, Bug, RefreshCw, Zap } from 'lucide-react';
 import { SystemHealthState, SystemLog } from '../types/simulation';
 
 interface SystemInspectorProps {
@@ -27,7 +27,7 @@ const SystemInspector: React.FC<SystemInspectorProps> = ({ health, onClose }) =>
       initial={{ opacity: 0, x: 300 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 300 }}
-      className="fixed top-0 right-0 w-96 h-full bg-slate-950/95 backdrop-blur-xl border-l border-slate-800 shadow-2xl z-50 flex flex-col"
+      className="fixed top-0 right-0 w-96 h-full bg-emerald-950/95 backdrop-blur-xl border-l border-emerald-800 shadow-2xl z-50 flex flex-col"
     >
       <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
         <div className="flex items-center gap-2">
@@ -39,13 +39,13 @@ const SystemInspector: React.FC<SystemInspectorProps> = ({ health, onClose }) =>
         </button>
       </div>
 
-      <div className="flex border-b border-slate-800">
-        {(['LOGS', 'METRICS', 'INCIDENTS'] as const).map(tab => (
+      <div className="flex border-b border-emerald-800">
+        {(['LOGS', 'METRICS', 'INCIDENTS', 'COMPUTE'] as const).map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab as any)}
             className={`flex-1 py-3 text-[10px] font-bold tracking-widest transition-all ${
-              activeTab === tab ? 'text-emerald-400 bg-emerald-500/10 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'
+              activeTab === tab ? 'text-emerald-400 bg-emerald-500/10 border-b-2 border-emerald-500' : 'text-emerald-500/50 hover:text-emerald-300'
             }`}
           >
             {tab}
@@ -137,14 +137,14 @@ const SystemInspector: React.FC<SystemInspectorProps> = ({ health, onClose }) =>
         {activeTab === 'INCIDENTS' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
             {health.activeIncidents.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-700 opacity-50 pt-20">
+              <div className="h-full flex flex-col items-center justify-center text-emerald-900 opacity-50 pt-20">
                 <Shield size={48} className="mb-4" />
-                <p className="text-xs uppercase tracking-widest">System Stable</p>
-                <p className="text-[10px] mt-1">No active incidents detected</p>
+                <p className="text-xs uppercase tracking-widest text-emerald-700">System Stable</p>
+                <p className="text-[10px] mt-1 text-emerald-800">No active incidents detected</p>
               </div>
             ) : (
               health.activeIncidents.map(incident => (
-                <div key={incident.id} className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
+                <div key={incident.id} className="bg-emerald-900/30 border border-emerald-800 rounded-xl overflow-hidden">
                   <div className={`p-3 flex items-center justify-between ${
                     incident.severity === 'CRITICAL' ? 'bg-rose-500/10' : 'bg-amber-500/10'
                   }`}>
@@ -153,20 +153,20 @@ const SystemInspector: React.FC<SystemInspectorProps> = ({ health, onClose }) =>
                     }`}>
                       {incident.type}
                     </span>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-950 text-slate-400">
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400">
                       {incident.status}
                     </span>
                   </div>
                   <div className="p-3 space-y-3">
-                    <p className="text-xs text-slate-300 leading-relaxed">{incident.description}</p>
+                    <p className="text-xs text-emerald-100 leading-relaxed">{incident.description}</p>
                     {incident.rootCause && (
-                      <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800">
-                        <div className="text-[9px] font-bold text-slate-500 uppercase mb-1">Root Cause</div>
-                        <p className="text-[10px] text-slate-400 italic">{incident.rootCause}</p>
+                      <div className="bg-emerald-950/50 p-2 rounded-lg border border-emerald-800">
+                        <div className="text-[9px] font-bold text-emerald-500 uppercase mb-1">Root Cause</div>
+                        <p className="text-[10px] text-emerald-400 italic">{incident.rootCause}</p>
                       </div>
                     )}
                     <div className="space-y-1">
-                      <div className="text-[9px] font-bold text-slate-500 uppercase mb-1">Recovery Actions</div>
+                      <div className="text-[9px] font-bold text-emerald-500 uppercase mb-1">Recovery Actions</div>
                       {incident.actionsTaken.map((action, i) => (
                         <div key={i} className="flex items-center gap-2 text-[10px] text-emerald-400/80">
                           <CheckCircle size={10} /> {action}
@@ -177,6 +177,79 @@ const SystemInspector: React.FC<SystemInspectorProps> = ({ health, onClose }) =>
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {(activeTab as any) === 'COMPUTE' && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest">Compute Core Status</h3>
+              <div className="bg-emerald-900/40 border border-emerald-500/30 p-4 rounded-2xl flex flex-col gap-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full animate-pulse ${health.workerStatus === 'BUSY' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'}`} />
+                    <span className="text-xs font-bold text-emerald-100 uppercase tracking-wide">Simulation Worker</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${health.workerStatus === 'BUSY' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                    {health.workerStatus || 'UNAVAILABLE'}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-emerald-500 uppercase font-bold">Parallelism</span>
+                    <div className="text-sm font-bold text-emerald-100">THREAD-BOUND</div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-emerald-500 uppercase font-bold">Priority Class</span>
+                    <div className="text-sm font-bold text-emerald-100">REALTIME</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Compute Scaling & Frequency</h3>
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-950/50 rounded-2xl border border-emerald-800/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] text-emerald-500 uppercase font-bold">Computational Load</span>
+                    <span className="text-[10px] font-mono text-emerald-400">98.2%</span>
+                  </div>
+                  <div className="h-10 flex items-end gap-[2px]">
+                    {Array.from({ length: 40 }).map((_, i) => (
+                      <motion.div 
+                        key={i}
+                        animate={{ height: `${30 + Math.random() * 70}%` }}
+                        transition={{ duration: 0.1, repeat: Infinity }}
+                        className="flex-1 bg-emerald-500/40 rounded-t-[1px]"
+                      />
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-emerald-900/20 p-3 rounded-xl border border-emerald-800/50">
+                    <div className="text-[8px] text-emerald-600 font-bold uppercase mb-1">Instruction Flux</div>
+                    <div className="text-xs font-mono text-emerald-300">1.2 GFLOPS</div>
+                  </div>
+                  <div className="bg-emerald-900/20 p-3 rounded-xl border border-emerald-800/50">
+                    <div className="text-[8px] text-emerald-600 font-bold uppercase mb-1">Buffer Offset</div>
+                    <div className="text-xs font-mono text-emerald-300">0.02ms</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 backdrop-blur-sm">
+              <div className="flex items-center gap-2 mb-2 text-emerald-400">
+                <Zap size={14} className="animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Flux Core Engine V3</span>
+              </div>
+              <p className="text-[10px] text-emerald-600/80 leading-relaxed italic">
+                Optimizing O(k) neighbor lookup through spatial hashing. Parallel worker thread maintaining deterministic phi-scaling across all agent shards.
+              </p>
+            </div>
           </div>
         )}
       </div>

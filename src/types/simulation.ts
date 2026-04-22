@@ -63,6 +63,8 @@ export interface SystemHealthState {
   latency: number;
   errorRate: number;
   resourceUsage: number;
+  workerStatus?: 'IDLE' | 'BUSY' | 'UNAVAILABLE';
+  parallelismActive?: boolean;
   activeIncidents: HealthIncident[];
   history: { step: number; score: number }[];
   systemLogs: SystemLog[];
@@ -129,11 +131,21 @@ export interface SimulationMetrics {
   step: number;
   failureRate: number; // Rate of health change per step
   history: number[]; // Last 50 health points for regression
+  throughput?: number; // Steps per second
+  memoryUsage?: number; // Estimated memory usage in bytes
   anomalies: {
     step: number;
     severity: number;
     type: string;
   }[];
+}
+
+export interface TelemetryEvent {
+  id: string;
+  timestamp: number;
+  type: 'SIGNAL' | 'MUTATION' | 'DEATH' | 'BIRTH';
+  message: string;
+  payload?: any;
 }
 
 export interface PredictionResult {

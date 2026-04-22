@@ -31,7 +31,13 @@ function getAi() {
   return aiInstance;
 }
 
+export interface AIModule {
+  name: string;
+  execute: (data: any) => Promise<any>;
+}
+
 export class HealthEngine {
+  private modules: Map<string, AIModule> = new Map();
   private state: SystemHealthState = {
     overallScore: 100,
     latency: 0,
@@ -41,6 +47,17 @@ export class HealthEngine {
     history: [],
     systemLogs: []
   };
+   
+  // Registry methods
+  public registerModule(module: AIModule) {
+    this.modules.set(module.name, module);
+  }
+
+  public async executeModule(name: string, data: any): Promise<any> {
+    const module = this.modules.get(name);
+    if (!module) throw new Error(`Module ${name} not found`);
+    return await module.execute(data);
+  }
 
   private incidentLog: HealthIncident[] = [];
   private systemLogs: SystemLog[] = [];

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ManagerDNA, Gene, GeneType } from '../types/simulation';
-import { Dna, Zap, Activity, Shield, TrendingUp, Plus, Trash2, Sliders, Layers, RefreshCw, Maximize } from 'lucide-react';
+import { Dna, Zap, Activity, Shield, TrendingUp, Plus, Trash2, Sliders, Layers, RefreshCw, Maximize, BarChart3, Binary } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface GeneticEditorProps {
@@ -27,6 +27,35 @@ const GENE_ICONS: Record<GeneType, React.ReactNode> = {
 };
 
 const GeneticEditor: React.FC<GeneticEditorProps> = ({ dna, onUpdateDNA }) => {
+  const estimates = useMemo(() => {
+    const getAvg = (type: GeneType) => {
+      const g = dna.genes.filter(gene => gene.type === type);
+      if (g.length === 0) return 0.5;
+      return g.reduce((acc, gene) => acc + gene.expression, 0) / g.length;
+    };
+
+    const met = getAvg('METABOLISM');
+    const sig = getAvg('SIGNALING');
+    const stb = getAvg('STABILITY');
+    const def = getAvg('DEFENSE');
+    const pat = getAvg('PATTERN_SCALING');
+    const rec = getAvg('RECURSION_DEPTH');
+    const adp = getAvg('ADAPTATION_SPEED');
+    const agg = getAvg('RECOVERY_AGGRESSION');
+    const thr = getAvg('STABILITY_THRESHOLD');
+
+    // Heuristic Estimates
+    const health = 65 + (met * 20) + (stb * 10) + (def * 5) - (agg * 10);
+    const density = 0.1 + (sig * 2.5) + (adp * 0.5);
+    const stability = (dna.phiHarmony * 40) + (stb * 30) + (thr * 30) - (adp * 10);
+    
+    return {
+      health: Math.max(0, Math.min(100, health)),
+      density: Math.max(0, density),
+      stability: Math.max(0, Math.min(100, stability))
+    };
+  }, [dna]);
+
   const handleExpressionChange = (id: string, value: number) => {
     const nextGenes = dna.genes.map(g => 
       g.id === id ? { ...g, expression: value } : g
@@ -203,6 +232,37 @@ const GeneticEditor: React.FC<GeneticEditorProps> = ({ dna, onUpdateDNA }) => {
                 </div>
               </div>
 
+              <div className="space-y-6 pt-6 border-t border-emerald-800">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="text-emerald-400" size={18} />
+                  <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Metabolic Forecasting</h3>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <ForecastMetric 
+                    label="Est. System Health" 
+                    value={`${estimates.health.toFixed(1)}%`} 
+                    icon={<Activity size={12} />} 
+                    color="text-emerald-400"
+                    progress={estimates.health}
+                  />
+                  <ForecastMetric 
+                    label="Est. Signal Density" 
+                    value={estimates.density.toFixed(2)} 
+                    icon={<Binary size={12} />} 
+                    color="text-cyan-400"
+                    progress={Math.min(100, (estimates.density / 3) * 100)}
+                  />
+                  <ForecastMetric 
+                    label="Est. Stability Score" 
+                    value={`${estimates.stability.toFixed(1)}/100`} 
+                    icon={<Shield size={12} />} 
+                    color="text-indigo-400"
+                    progress={estimates.stability}
+                  />
+                </div>
+              </div>
+
               <div className="pt-6 border-t border-emerald-800">
                 <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
                   <p className="text-[11px] text-emerald-400 leading-relaxed italic">
@@ -217,5 +277,23 @@ const GeneticEditor: React.FC<GeneticEditorProps> = ({ dna, onUpdateDNA }) => {
     </div>
   );
 };
+
+const ForecastMetric = ({ label, value, icon, color, progress }: { label: string, value: string, icon: React.ReactNode, color: string, progress: number }) => (
+  <div className="bg-emerald-950/50 border border-emerald-800 p-4 rounded-2xl">
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+        {icon} {label}
+      </div>
+      <div className={`text-sm font-mono font-bold ${color}`}>{value}</div>
+    </div>
+    <div className="w-full h-1 bg-emerald-900 rounded-full overflow-hidden">
+      <motion.div 
+        initial={false}
+        animate={{ width: `${progress}%` }}
+        className={`h-full ${color.replace('text-', 'bg-')}`}
+      />
+    </div>
+  </div>
+);
 
 export default GeneticEditor;

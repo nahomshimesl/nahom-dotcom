@@ -170,6 +170,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         </div>
       )}
+
+      <div className="mt-auto pt-6 border-t border-emerald-800/50 flex flex-col items-center gap-1">
+        <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-[0.2em]">Research Environment v1.0.5</div>
+        <div className="text-[9px] text-emerald-600/60 font-medium">Created by <span className="text-emerald-500">Nahom Brhenu</span></div>
+      </div>
     </div>
   );
 };

@@ -4,7 +4,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { AgentState, BioSignal, OrganType, SimulationMetrics, PredictionResult, MutationSuggestion, ManagerDNA, SystemHealthState, SignalPriority } from './types/simulation';
+import { io } from "socket.io-client";
+import { AgentState, BioSignal, OrganType, SimulationMetrics, PredictionResult, MutationSuggestion, ManagerDNA, SystemHealthState, SignalPriority, TelemetryEvent } from './types/simulation';
 import { createInitialAgents, processSimulationStep, createInitialDNA } from './engine/SimulationLoop';
 import { getSimulationPrediction, suggestMutation } from './services/PredictionService';
 import { healthEngine } from './services/HealthEngine';
@@ -16,10 +17,14 @@ import FullStackSimulation from './components/FullStackSimulation';
 import SystemInspector from './components/SystemInspector';
 import ErrorBoundary from './components/ErrorBoundary';
 import { motion, AnimatePresence } from 'motion/react';
-import { Microscope, Database, BrainCircuit, Network, Zap, Activity, ShieldAlert, Save, Trash2, LogIn, LogOut, Dna, Check, X, AlertTriangle, ArrowUpDown, Search, FlaskConical, Terminal } from 'lucide-react';
+import { Microscope, Database, BrainCircuit, Network, Zap, Activity, ShieldAlert, Save, Trash2, LogIn, LogOut, Dna, Check, X, AlertTriangle, ArrowUpDown, Search, FlaskConical, Terminal, Binary, Brain } from 'lucide-react';
 import { auth, db, googleProvider, signInWithPopup, signOut, collection, addDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area } from 'recharts';
+
+import TelemetryViewer from './components/TelemetryViewer';
+import DataAnalyzer from './components/DataAnalyzer';
+import { TelemetryEvent } from './types/simulation';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -30,7 +35,8 @@ export default function App() {
   const [agents, setAgents] = useState<AgentState[]>([]);
   const [signals, setSignals] = useState<BioSignal[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'SIMULATION' | 'GENETICS' | 'HEALTH' | 'POPULATION' | 'FULLSTACK'>('SIMULATION');
+  const [activeTab, setActiveTab] = useState<'SIMULATION' | 'GENETICS' | 'HEALTH' | 'POPULATION' | 'FULLSTACK' | 'TELEMETRY' | 'ANALYSIS'>('SIMULATION');
+  const [telemetryEvents, setTelemetryEvents] = useState<TelemetryEvent[]>([]);
   const [dna, setDna] = useState<ManagerDNA>(createInitialDNA());
   const [health, setHealth] = useState<SystemHealthState>({
     overallScore: 100,
@@ -62,16 +68,141 @@ export default function App() {
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK'>('ALL');
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [showInspector, setShowInspector] = useState(false);
+  const [groupingMode, setGroupingMode] = useState<'NONE' | 'TYPE' | 'HEALTH'>('NONE');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [visualizerFilter, setVisualizerFilter] = useState<Set<string>>(new Set());
   
   const mutationCooldowns = useRef<Record<string, number>>({});
   const frameCount = useRef(0);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const lastStepTime = useRef(0);
+  const lastComputeTime = useRef<number | null>(null);
   const predictionCooldown = useRef(0);
+  const workerRef = useRef<Worker | null>(null);
+  const isProcessingRef = useRef(false);
+  const socketRef = useRef<any>(null); // Add socket ref
 
   // 1. Initialize Simulation & Auth
   useEffect(() => {
+    // Initialize Socket.io
+    socketRef.current = io();
+    socketRef.current.emit("join-session", "simulation-room-1");
+
+    socketRef.current.on("health-update", (healthUpdate: any) => {
+      // Potentially update health state or logs
+      console.log("Health updated via socket", healthUpdate);
+    });
+
+    socketRef.current.on("log-added", (log: any) => {
+      setTelemetryEvents(prev => [...prev, {
+        id: `tel-${Date.now()}-${Math.random()}`,
+        timestamp: Date.now(),
+        type: 'SIGNAL', // Or derive from log type
+        message: log.message || log.details?.message || "System event"
+      }].slice(-50));
+    });
+
+    // Initialize Web Worker
+    workerRef.current = new Worker(new URL('./engine/simulation.worker.ts', import.meta.url), { type: 'module' });
+    
+    workerRef.current.onmessage = (e) => {
+      const now = Date.now();
+      
+      setAgents(nextAgents);
+      setSignals(nextSignals);
+      
+      // Compute throughput
+      const timeDelta = now - (lastComputeTime.current || now - 16);
+      const stepsDone = nextStep - (metricsRef.current.step || nextStep - 1);
+      const throughput = (stepsDone / timeDelta) * 1000;
+      lastComputeTime.current = now;
+
+      setHealth(h => ({ ...h, workerStatus: 'IDLE', parallelismActive: true }));
+
+      // Generate Telemetry Events
+      const newEvents: TelemetryEvent[] = [];
+      if (nextSignals.length > signalsRef.current.length) {
+        newEvents.push({
+          id: `tel-${now}-${Math.random()}`,
+          timestamp: now,
+          type: 'SIGNAL',
+          message: `Compute Hub processing ${nextSignals.length - signalsRef.current.length} new signaling packets in parallel`,
+        });
+      }
+
+      if (nextAgents.length !== agentsRef.current.length) {
+        const delta = nextAgents.length - agentsRef.current.length;
+        newEvents.push({
+          id: `tel-${now}-${Math.random()}`,
+          timestamp: now,
+          type: delta > 0 ? 'BIRTH' : 'DEATH',
+          message: `${Math.abs(delta)} agents reorganized in sector ${nextStep}`,
+        });
+      }
+
+      if (newEvents.length > 0) {
+        setTelemetryEvents(prev => [...prev, ...newEvents].slice(-50));
+      }
+
+      // Update Metrics
+      setMetrics(m => {
+        const finalAvgHealth = nextAgents.length > 0 ? nextAgents.reduce((acc: number, a: AgentState) => acc + a.health, 0) / nextAgents.length : 0;
+        const newHistory = [...m.history, finalAvgHealth].slice(-50);
+        let failureRate = 0;
+        
+        if (newHistory.length > 1) {
+          const deltas = [];
+          for (let i = 1; i < newHistory.length; i++) {
+            deltas.push(newHistory[i] - newHistory[i-1]);
+          }
+          failureRate = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+        }
+
+        const newAnomalies = [...m.anomalies];
+        if (newHistory.length > 10) {
+          const recentDeltas = [];
+          for (let i = 1; i < newHistory.length; i++) {
+            recentDeltas.push(newHistory[i] - newHistory[i-1]);
+          }
+          const mean = recentDeltas.reduce((a, b) => a + b, 0) / recentDeltas.length;
+          const variance = recentDeltas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentDeltas.length;
+          const stdDev = Math.sqrt(variance);
+          
+          const currentDelta = finalAvgHealth - (newHistory[newHistory.length - 2] || finalAvgHealth);
+          const zScore = stdDev > 0 ? Math.abs(currentDelta - mean) / stdDev : 0;
+
+          if (zScore > 3) {
+            newAnomalies.push({
+              step: nextStep,
+              severity: zScore,
+              type: currentDelta < mean ? 'SUDDEN_DROP' : 'UNEXPECTED_SURGE'
+            });
+          }
+        }
+
+        const criticalAgent = nextAgents.find((a: AgentState) => a.health < 20);
+        if (criticalAgent && !mutationSuggestion && !isMutating && (!mutationCooldowns.current[criticalAgent.id] || nextStep > mutationCooldowns.current[criticalAgent.id])) {
+          handleTriggerMutation(criticalAgent, nextStep);
+        }
+
+        return {
+          ...m,
+          totalAgents: nextAgents.length,
+          averageHealth: finalAvgHealth,
+          signalDensity: nextAgents.length > 0 ? nextSignals.length / nextAgents.length : 0,
+          step: nextStep,
+          history: newHistory,
+          failureRate: failureRate,
+          anomalies: newAnomalies.slice(-10),
+          throughput,
+          memoryUsage: nextAgents.length * 512 + nextSignals.length * 128
+        };
+      });
+
+      isProcessingRef.current = false;
+    };
+
     // Initialize HealthEngine Backend
     healthEngine.setBackendConfig(true, "organoid2026");
 
@@ -100,9 +231,11 @@ export default function App() {
     const timer = setTimeout(updateSize, 100);
     window.addEventListener('resize', updateSize);
     return () => {
+      socketRef.current?.disconnect();
       clearTimeout(timer);
       window.removeEventListener('resize', updateSize);
       unsubscribeAuth();
+      if (workerRef.current) workerRef.current.terminate();
     };
   }, []);
 
@@ -139,7 +272,12 @@ export default function App() {
 
   // 2. Simulation Loop
   const step = useCallback(() => {
-    if (!isRunning) return;
+    if (!isRunning || !workerRef.current) return;
+
+    if (isProcessingRef.current) {
+      lastStepTime.current = requestAnimationFrame(step);
+      return;
+    }
 
     frameCount.current++;
     
@@ -158,80 +296,15 @@ export default function App() {
       return;
     }
 
-    let currentAgents = agentsRef.current;
-    let currentSignals = signalsRef.current;
-    let currentStepCount = metricsRef.current.step;
-    let finalAvgHealth = 0;
+    isProcessingRef.current = true;
+    setHealth(h => ({ ...h, workerStatus: 'BUSY' }));
 
-    for (let i = 0; i < stepsToProcess; i++) {
-      const { nextAgents, nextSignals } = processSimulationStep(
-        currentAgents, 
-        currentSignals, 
-        dna, 
-        currentStepCount
-      );
-      currentAgents = nextAgents;
-      currentSignals = nextSignals;
-      currentStepCount++;
-      finalAvgHealth = currentAgents.reduce((acc, a) => acc + a.health, 0) / currentAgents.length;
-    }
-
-    setAgents(currentAgents);
-    setSignals(currentSignals);
-    
-    // Update Metrics
-    setMetrics(m => {
-      const newHistory = [...m.history, finalAvgHealth].slice(-50); // Last 50 steps
-      let failureRate = 0;
-      
-      if (newHistory.length > 1) {
-        const deltas = [];
-        for (let i = 1; i < newHistory.length; i++) {
-          deltas.push(newHistory[i] - newHistory[i-1]);
-        }
-        failureRate = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-      }
-
-      // Anomaly Detection: Z-Score on failure rate
-      const newAnomalies = [...m.anomalies];
-      if (newHistory.length > 10) {
-        const recentDeltas = [];
-        for (let i = 1; i < newHistory.length; i++) {
-          recentDeltas.push(newHistory[i] - newHistory[i-1]);
-        }
-        const mean = recentDeltas.reduce((a, b) => a + b, 0) / recentDeltas.length;
-        const variance = recentDeltas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentDeltas.length;
-        const stdDev = Math.sqrt(variance);
-        
-        const currentDelta = finalAvgHealth - (newHistory[newHistory.length - 2] || finalAvgHealth);
-        const zScore = stdDev > 0 ? Math.abs(currentDelta - mean) / stdDev : 0;
-
-        if (zScore > 3) { // 3 Sigma Anomaly
-          newAnomalies.push({
-            step: currentStepCount,
-            severity: zScore,
-            type: currentDelta < mean ? 'SUDDEN_DROP' : 'UNEXPECTED_SURGE'
-          });
-        }
-      }
-
-      // Mutation Trigger: Find agents with health < 20%
-      const criticalAgent = currentAgents.find(a => a.health < 20);
-      if (criticalAgent && !mutationSuggestion && !isMutating && (!mutationCooldowns.current[criticalAgent.id] || currentStepCount > mutationCooldowns.current[criticalAgent.id])) {
-        // Trigger mutation suggestion
-        handleTriggerMutation(criticalAgent, currentStepCount);
-      }
-
-      return {
-        ...m,
-        totalAgents: currentAgents.length,
-        averageHealth: finalAvgHealth,
-        signalDensity: currentSignals.length / currentAgents.length,
-        step: currentStepCount,
-        history: newHistory,
-        failureRate: failureRate,
-        anomalies: newAnomalies.slice(-10), // Keep last 10 anomalies
-      };
+    workerRef.current.postMessage({
+      agents: agentsRef.current,
+      signals: signalsRef.current,
+      dna,
+      currentStep: metricsRef.current.step,
+      stepsToProcess
     });
 
     lastStepTime.current = requestAnimationFrame(step);
@@ -400,6 +473,11 @@ export default function App() {
     setAgents(createInitialAgents(50));
     setSignals([]);
     setDna(createInitialDNA());
+    setGroupingMode('NONE');
+    setCollapsedGroups(new Set());
+    setVisualizerFilter(new Set());
+    setTelemetryEvents([]);
+    lastComputeTime.current = null;
     setMetrics({
       totalAgents: 50,
       averageHealth: 90,
@@ -409,6 +487,8 @@ export default function App() {
       failureRate: 0,
       history: [],
       anomalies: [],
+      throughput: 0,
+      memoryUsage: 0
     });
     setPrediction(undefined);
   };
@@ -503,6 +583,60 @@ export default function App() {
     }
   };
 
+  const toggleGroupCollapse = (groupId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const toggleVisualizerFilter = (groupId: string) => {
+    setVisualizerFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const groupedAgents = useMemo<Record<string, AgentState[]>>(() => {
+    if (groupingMode === 'NONE') return { 'All Agents': agents };
+    
+    const groups: Record<string, AgentState[]> = {};
+    agents.forEach(agent => {
+      let key = '';
+      if (groupingMode === 'TYPE') {
+        key = agent.type;
+      } else {
+        if (agent.health <= 30) key = 'CRITICAL';
+        else if (agent.health <= 70) key = 'WARNING';
+        else key = 'STABLE';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(agent);
+    });
+    return groups;
+  }, [agents, groupingMode]);
+
+  const filteredAgentsForVisualizer = useMemo(() => {
+    if (visualizerFilter.size === 0) return agents;
+    
+    return agents.filter(agent => {
+      if (groupingMode === 'TYPE') {
+        return !visualizerFilter.has(agent.type);
+      } else if (groupingMode === 'HEALTH') {
+        let key = '';
+        if (agent.health <= 30) key = 'CRITICAL';
+        else if (agent.health <= 70) key = 'WARNING';
+        else key = 'STABLE';
+        return !visualizerFilter.has(key);
+      }
+      return true;
+    });
+  }, [agents, groupingMode, visualizerFilter]);
+
   return (
     <ErrorBoundary>
       <div className="flex h-screen bg-emerald-950 text-emerald-50 font-sans overflow-hidden">
@@ -535,6 +669,17 @@ export default function App() {
             <Activity size={20} />
           </button>
           <button 
+            onClick={() => setActiveTab('ANALYSIS')}
+            className={`p-3 rounded-xl transition-all ${
+              activeTab === 'ANALYSIS' 
+                ? 'bg-emerald-800 text-emerald-400 shadow-inner' 
+                : 'text-emerald-500 hover:text-emerald-300'
+            }`}
+            title="Statistical Analysis"
+          >
+            <Brain size={20} />
+          </button>
+          <button 
             onClick={() => setActiveTab('GENETICS')}
             className={`p-3 rounded-xl transition-all ${
               activeTab === 'GENETICS' 
@@ -544,6 +689,17 @@ export default function App() {
             title="Genetic Manager"
           >
             <Dna size={20} />
+          </button>
+          <button 
+            onClick={() => setActiveTab('TELEMETRY')}
+            className={`p-3 rounded-xl transition-all ${
+              activeTab === 'TELEMETRY' 
+                ? 'bg-emerald-800 text-emerald-400 shadow-inner' 
+                : 'text-emerald-500 hover:text-emerald-300'
+            }`}
+            title="Compute Telemetry"
+          >
+            <Binary size={20} />
           </button>
           <button 
             onClick={() => setActiveTab('HEALTH')}
@@ -685,7 +841,7 @@ export default function App() {
                 <div className="min-h-[450px] h-[50vh] flex-1 relative bg-emerald-950 rounded-3xl border border-emerald-800 overflow-hidden shadow-2xl" ref={containerRef}>
             {viewSize.width > 0 && viewSize.height > 0 ? (
               <Visualizer 
-                agents={agents} 
+                agents={filteredAgentsForVisualizer} 
                 signals={signals} 
                 width={viewSize.width} 
                 height={viewSize.height} 
@@ -1023,8 +1179,8 @@ export default function App() {
             )}
           </div>
         </motion.div>
-            ) : activeTab === 'POPULATION' ? (
-              <motion.div
+      ) : activeTab === 'POPULATION' ? (
+        <motion.div
                 key="population"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -1037,7 +1193,27 @@ export default function App() {
                       <h2 className="text-2xl font-bold text-emerald-50">Organoid Population</h2>
                       <p className="text-emerald-400 text-sm">Real-time status of all active biological agents</p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 items-center">
+                      <div className="flex bg-emerald-900 border border-emerald-800 rounded-xl p-1 mr-4">
+                        <button 
+                          onClick={() => setGroupingMode('NONE')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${groupingMode === 'NONE' ? 'bg-emerald-500 text-white' : 'text-emerald-500 hover:bg-emerald-800'}`}
+                        >
+                          None
+                        </button>
+                        <button 
+                          onClick={() => setGroupingMode('TYPE')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${groupingMode === 'TYPE' ? 'bg-emerald-500 text-white' : 'text-emerald-500 hover:bg-emerald-800'}`}
+                        >
+                          Type
+                        </button>
+                        <button 
+                          onClick={() => setGroupingMode('HEALTH')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${groupingMode === 'HEALTH' ? 'bg-emerald-500 text-white' : 'text-emerald-500 hover:bg-emerald-800'}`}
+                        >
+                          Health
+                        </button>
+                      </div>
                       <div className="bg-emerald-900/50 border border-emerald-800 p-4 rounded-2xl">
                         <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">Total Population</div>
                         <div className="text-2xl font-mono font-bold text-emerald-50">{agents.length}</div>
@@ -1049,90 +1225,118 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {agents.map(agent => (
-                      <motion.div 
-                        key={agent.id}
-                        layoutId={agent.id}
-                        className="bg-emerald-900/30 border border-emerald-800 p-4 rounded-2xl hover:border-emerald-600 transition-all group"
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                              agent.type === OrganType.METABOLIC_HUB ? 'bg-emerald-500/20 text-emerald-400' :
-                              agent.type === OrganType.SIGNAL_TRANSDUCER ? 'bg-blue-500/20 text-blue-400' :
-                              agent.type === OrganType.RESOURCE_COLLECTOR ? 'bg-cyan-500/20 text-cyan-400' :
-                              'bg-slate-500/20 text-slate-400'
-                            }`}>
-                              <Microscope size={20} />
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-emerald-50 truncate w-32">{agent.name}</div>
-                              <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{agent.type}</div>
-                            </div>
+                  <div className="space-y-8 pb-12">
+                    {(Object.entries(groupedAgents) as [string, AgentState[]][]).map(([groupName, groupAgents]) => (
+                      <div key={groupName} className="space-y-4">
+                        <div className="flex items-center justify-between bg-emerald-900/20 p-4 rounded-2xl border border-emerald-800/50">
+                          <div className="flex items-center gap-4">
+                            <button 
+                              onClick={() => toggleGroupCollapse(groupName)}
+                              className="p-1 hover:bg-emerald-800 rounded transition-colors text-emerald-500"
+                            >
+                              <motion.div animate={{ rotate: collapsedGroups.has(groupName) ? -90 : 0 }}>
+                                <ArrowUpDown size={16} />
+                              </motion.div>
+                            </button>
+                            <h3 className="font-bold text-emerald-50 uppercase tracking-widest flex items-center gap-2">
+                              {groupName} <span className="text-emerald-600 font-mono text-sm ml-2">[{groupAgents.length}]</span>
+                            </h3>
                           </div>
-                          <div className={`text-xs font-mono font-bold ${agent.health > 70 ? 'text-emerald-400' : agent.health > 30 ? 'text-amber-400' : 'text-rose-400'}`}>
-                            {agent.health.toFixed(0)}%
-                          </div>
+                          {groupingMode !== 'NONE' && (
+                            <button 
+                              onClick={() => toggleVisualizerFilter(groupName)}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition-all border ${
+                                visualizerFilter.has(groupName) 
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' 
+                                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              }`}
+                            >
+                              {visualizerFilter.has(groupName) ? (
+                                <><X size={12} /> Hidden</>
+                              ) : (
+                                <><Check size={12} /> Visible</>
+                              )}
+                            </button>
+                          )}
                         </div>
 
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex justify-between text-[10px] font-bold text-emerald-600 uppercase mb-1">
-                              <span>Energy</span>
-                              <span>{agent.energy.toFixed(0)}/200</span>
-                            </div>
-                            <div className="h-1.5 bg-emerald-950 rounded-full overflow-hidden">
+                        {!collapsedGroups.has(groupName) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {groupAgents.map(agent => (
                               <motion.div 
-                                initial={false}
-                                animate={{ width: `${(agent.energy / 200) * 100}%` }}
-                                className="h-full bg-emerald-500"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex justify-between text-[10px] font-bold text-emerald-600 uppercase mb-1">
-                              <span>Health</span>
-                            </div>
-                            <div className="h-1.5 bg-emerald-950 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={false}
-                                animate={{ width: `${agent.health}%` }}
-                                className={`h-full ${agent.health > 70 ? 'bg-emerald-500' : agent.health > 30 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                              />
-                            </div>
-                          </div>
-                        </div>
+                                key={agent.id}
+                                layoutId={agent.id}
+                                className="bg-emerald-900/30 border border-emerald-800 p-4 rounded-2xl hover:border-emerald-600 transition-all group relative overflow-hidden"
+                              >
+                                {visualizerFilter.has(groupName) && groupingMode !== 'NONE' && (
+                                  <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[1px] pointer-events-none z-10" />
+                                )}
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                      agent.type === OrganType.METABOLIC_HUB ? 'bg-emerald-500/20 text-emerald-400' :
+                                      agent.type === OrganType.SIGNAL_TRANSDUCER ? 'bg-blue-500/20 text-blue-400' :
+                                      agent.type === OrganType.RESOURCE_COLLECTOR ? 'bg-cyan-500/20 text-cyan-400' :
+                                      'bg-slate-500/20 text-slate-400'
+                                    }`}>
+                                      <Microscope size={20} />
+                                    </div>
+                                    <div className="z-20">
+                                      <div className="text-sm font-bold text-emerald-50 truncate w-32">{agent.name}</div>
+                                      <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{agent.type}</div>
+                                    </div>
+                                  </div>
+                                  <div className={`text-xs font-mono font-bold z-20 ${agent.health > 70 ? 'text-emerald-400' : agent.health > 30 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                    {agent.health.toFixed(0)}%
+                                  </div>
+                                </div>
 
-                        {agent.signalHistory && agent.signalHistory.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-emerald-800/50">
-                            <div className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest mb-1.5 flex justify-between">
-                              <span>Signal History</span>
-                              <span className="text-blue-500">Sens: {(agent.sensitivity * 100).toFixed(0)}%</span>
-                            </div>
-                            <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
-                              {agent.signalHistory.slice(0, 10).map((sig, idx) => (
-                                <div 
-                                  key={idx}
-                                  className={`flex-shrink-0 w-2 h-2 rounded-full ${
-                                    sig.type === 'ALERT' ? 'bg-rose-500 animate-pulse' :
-                                    sig.priority === SignalPriority.CRITICAL ? 'bg-rose-600' :
-                                    sig.priority === SignalPriority.HIGH ? 'bg-amber-500' :
-                                    sig.type === 'ATP' ? 'bg-emerald-500' :
-                                    'bg-blue-500'
-                                  }`}
-                                  title={`${sig.type} (P:${sig.priority})`}
-                                />
-                              ))}
-                            </div>
+                                <div className="space-y-3 z-20 relative">
+                                  <div>
+                                    <div className="flex justify-between text-[10px] font-bold text-emerald-600 uppercase mb-1">
+                                      <span>Energy</span>
+                                      <span>{agent.energy.toFixed(0)}/200</span>
+                                    </div>
+                                    <div className="h-1.5 bg-emerald-950 rounded-full overflow-hidden">
+                                      <motion.div animate={{ width: `${(agent.energy / 200) * 100}%` }} className="h-full bg-emerald-500" />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="flex justify-between text-[10px] font-bold text-emerald-600 uppercase mb-1">
+                                      <span>Health</span>
+                                    </div>
+                                    <div className="h-1.5 bg-emerald-950 rounded-full overflow-hidden">
+                                      <motion.div animate={{ width: `${agent.health}%` }} className={`h-full ${agent.health > 70 ? 'bg-emerald-500' : agent.health > 30 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {agent.signalHistory && agent.signalHistory.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-emerald-800/50">
+                                    <div className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest mb-1.5 flex justify-between">
+                                      <span>Signals</span>
+                                      <span className="text-blue-500">{(agent.sensitivity * 100).toFixed(0)}%</span>
+                                    </div>
+                                    <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
+                                      {agent.signalHistory.slice(0, 10).map((sig, idx) => (
+                                        <div 
+                                          key={idx}
+                                          className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                            sig.type === 'ALERT' ? 'bg-rose-500' :
+                                            sig.priority === SignalPriority.CRITICAL ? 'bg-rose-600' :
+                                            sig.priority === SignalPriority.HIGH ? 'bg-amber-500' :
+                                            'bg-emerald-500'
+                                          }`}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </motion.div>
+                            ))}
                           </div>
                         )}
-
-                        <div className="mt-4 pt-4 border-t border-emerald-800/50 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="text-[10px] font-mono text-emerald-700">ID: {agent.id.slice(0, 8)}</div>
-                          <div className="text-[10px] font-bold text-emerald-500 uppercase">Lvl {agent.recursionLevel}</div>
-                        </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1166,6 +1370,26 @@ export default function App() {
                 className="h-full overflow-hidden"
               >
                 <HealthDashboard health={health} onResolveIncident={handleResolveIncident} />
+              </motion.div>
+            ) : activeTab === 'ANALYSIS' ? (
+              <motion.div
+                key="analysis"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="h-full overflow-hidden"
+              >
+                <DataAnalyzer agents={agents} signals={signals} dna={dna} />
+              </motion.div>
+            ) : activeTab === 'TELEMETRY' ? (
+              <motion.div
+                key="telemetry"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="h-full overflow-hidden"
+              >
+                <TelemetryViewer metrics={metrics} events={telemetryEvents} />
               </motion.div>
             ) : null}
           </AnimatePresence>

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulation-engine
+  labels:
+    app: simulation-engine
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simulation-engine
+  template:
+    metadata:
+      labels:
+        app: simulation-engine
+    spec:
+      containers:
+      - name: simulation-app
+        image: gcr.io/[YOUR_PROJECT_ID]/simulation-engine:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: simulation-secrets
+              key: GEMINI_API_KEY
+        - name: APP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: simulation-secrets
+              key: APP_PASSWORD
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5

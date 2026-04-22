@@ -19,6 +19,25 @@ const BIO_DATA_POOL = [
 const PHI = 1.61803398875;
 
 /**
+ * Enhanced Metabolic Flux Engine
+ * Uses a simplified flux balance simulation to calculate energy efficiency.
+ */
+class MetabolicFluxEngine {
+  static calculateFlux(glucose: number, oxygen: number, efficiency: number): number {
+    // Simulated stoichiometric matrix calculation
+    const basicFlux = (glucose * 2) + (oxygen * 3);
+    const limitation = Math.min(glucose, oxygen / PHI);
+    return basicFlux * limitation * efficiency;
+  }
+
+  static optimizePathway(energy: number, agents: AgentState[]): number {
+    // Heuristic optimization of metabolic pathways
+    const hubCount = agents.filter(a => a.type === OrganType.METABOLIC_HUB).length;
+    return energy * (1 + (hubCount * 0.05));
+  }
+}
+
+/**
  * SpatialGrid for optimizing neighbor lookups.
  * Reduces O(N^2) distance calculations to O(N * K).
  */
@@ -143,9 +162,10 @@ export function processSimulationStep(
     const decayFactor = agent.parameters.decayRate * stabilityMod * agent.parameters.phiScaling;
     let health = agent.health - decayFactor;
     
-    // Smooth energy consumption
-    const metabolismFactor = agent.parameters.metabolismRate * metabolismMod * agent.parameters.phiScaling;
-    let energy = agent.energy - metabolismFactor;
+    // Smooth energy consumption using Enhanced Flux Engine
+    const fluxEfficiency = getModifier('METABOLISM');
+    const computedFlux = MetabolicFluxEngine.calculateFlux(metabolismMod, 1.0, fluxEfficiency);
+    let energy = agent.energy + (computedFlux * 0.01) - (agent.parameters.metabolismRate * agent.parameters.phiScaling);
 
     // 2. Process Incoming Signals
     // Refactor: Sort signals by priority (CRITICAL first)
@@ -198,12 +218,10 @@ export function processSimulationStep(
 
     // Calculate dynamic interaction radius
     // Base radius is 100, modified by health and signaling genes
-    // Low health expands radius for emergency signaling
-    // High energy slightly reduces radius for focused interactions
-    const healthMultiplier = health < 40 ? (1.0 + (40 - health) / 40) : 1.0;
-    const energyMultiplier = energy > 80 ? (1.0 - (energy - 80) / 600) : 1.0;
+    // Urgent states expand the radius
+    const isEmergency = health < 30;
     const baseRadius = 100 * agent.parameters.phiScaling;
-    const nextInteractionRadius = baseRadius * (1 + (signalingMod * 0.5)) * healthMultiplier * energyMultiplier;
+    const nextInteractionRadius = baseRadius * (1 + (signalingMod * 0.5)) * (isEmergency ? 2.0 : 1.0);
 
     // 3. Agent Logic (Recursive & Phi-based)
     // Update Phi Phase for spiral movement/behavior

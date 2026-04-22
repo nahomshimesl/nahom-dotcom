@@ -1,5 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import http from "http";
+import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -11,9 +13,25 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  const server = http.createServer(app);
+  const io = new Server(server);
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Socket.io for Real-time Communication
+  io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
+    
+    socket.on("join-session", (sessionId) => {
+      socket.join(sessionId);
+      console.log(`Client ${socket.id} joined session ${sessionId}`);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Client disconnected:", socket.id);
+    });
+  });
 
   // Simple Password Protection Middleware
   const APP_PASSWORD = process.env.APP_PASSWORD || "organoid2026";
@@ -65,6 +83,7 @@ async function startServer() {
 
   app.post("/api/system/health", authMiddleware, (req, res) => {
     systemHealth = { ...req.body, lastUpdate: new Date().toISOString() };
+    io.emit('health-update', systemHealth); // Emit real-time update
     res.json({ status: "updated" });
   });
 
@@ -76,6 +95,7 @@ async function startServer() {
     const log = { ...req.body, serverTimestamp: new Date().toISOString() };
     systemLogs.push(log);
     if (systemLogs.length > 500) systemLogs.shift();
+    io.emit('log-added', log); // Emit real-time log
     res.json({ status: "logged" });
   });
 
@@ -94,7 +114,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

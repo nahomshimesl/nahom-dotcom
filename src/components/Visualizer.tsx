@@ -178,6 +178,10 @@ const Visualizer: React.FC<VisualizerProps> = ({ agents, signals, width, height 
       })
       .attr('filter', (d: any) => d.isUrgent ? 'url(#glow)' : 'none');
 
+    // Setup Active Agent IDs for subtle indicators
+    const activeSourceAgentIds = new Set(signals.map(s => s.source));
+    const activeTargetAgentIds = new Set(signals.map(s => s.target));
+
     // 3. Draw Agents (Nodes)
     const node = g.append('g')
       .selectAll('g')
@@ -195,15 +199,30 @@ const Visualizer: React.FC<VisualizerProps> = ({ agents, signals, width, height 
         .on('drag', dragged)
         .on('end', dragended));
 
+    // Interaction Radius Indicator
     node.append('circle')
       .attr('r', (d: any) => d.interactionRadius || 100)
       .attr('fill', (d: any) => d.health < 30 ? '#f43f5e' : '#10b981')
       .attr('fill-opacity', 0.03)
       .attr('stroke', (d: any) => d.health < 30 ? '#f43f5e' : '#10b981')
       .attr('stroke-opacity', 0.1)
-      .attr('stroke-dasharray', '2,2')
-      .attr('class', (d: any) => d.health < 30 ? 'animate-pulse' : '');
+      .attr('stroke-dasharray', '2,2');
 
+    // Subtle Signal Pulse Indicator (New)
+    node.append('circle')
+      .attr('r', (d: any) => 16 + (d.energy / 10))
+      .attr('fill', 'transparent')
+      .attr('stroke', (d: any) => {
+        if (activeSourceAgentIds.has(d.id)) return '#34d399'; // Outgoing
+        if (activeTargetAgentIds.has(d.id)) return '#60a5fa'; // Incoming
+        return 'transparent';
+      })
+      .attr('stroke-width', (d: any) => (activeSourceAgentIds.has(d.id) || activeTargetAgentIds.has(d.id)) ? 2 : 0)
+      .attr('stroke-dasharray', (d: any) => activeSourceAgentIds.has(d.id) ? '2,1' : 'none')
+      .attr('class', (d: any) => (activeSourceAgentIds.has(d.id) || activeTargetAgentIds.has(d.id)) ? 'animate-pulse' : '')
+      .style('filter', 'url(#glow)');
+
+    // Main Agent Body
     node.append('circle')
       .attr('r', (d: any) => 12 + (d.energy / 10))
       .attr('fill', (d: any) => {
@@ -303,6 +322,14 @@ const Visualizer: React.FC<VisualizerProps> = ({ agents, signals, width, height 
         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400">
           <span className="w-2 h-2 rounded-full bg-emerald-400" /> Resource Collector
         </div>
+        <div className="h-px bg-emerald-800/50 my-1" />
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+          <span className="w-2 h-2 rounded-full border border-emerald-400 animate-pulse" /> Transmitting
+        </div>
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-blue-400">
+          <span className="w-2 h-2 rounded-full border border-blue-400 animate-pulse" /> Receiving
+        </div>
+        <div className="h-px bg-emerald-800/50 my-1" />
         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500">
           <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Emergency Alert
         </div>
