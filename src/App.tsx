@@ -24,7 +24,6 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 import TelemetryViewer from './components/TelemetryViewer';
 import DataAnalyzer from './components/DataAnalyzer';
-import { TelemetryEvent } from './types/simulation';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
