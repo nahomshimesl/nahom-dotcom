@@ -19,7 +19,7 @@
     "autoprefixer": "^10.4.21",
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.27.0",
     "express": "^4.22.1",
     "firebase": "^12.11.0",
     "lucide-react": "^0.546.0",
