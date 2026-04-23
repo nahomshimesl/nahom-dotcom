@@ -1,0 +1,19 @@
+{
+  "name": "realtime-ai-sim-starter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modular real-time AI-powered simulation starter (Express + Socket.IO).",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}

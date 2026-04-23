@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Realtime AI Sim Starter</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 24px;
+             background: #0b1220; color: #e2e8f0; }
+      h1 { margin: 0 0 8px; font-size: 18px; }
+      .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+      button { background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+               padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+      button:hover { background: #334155; }
+      pre { background: #0f172a; border: 1px solid #1e293b; padding: 12px;
+            border-radius: 8px; overflow: auto; max-height: 60vh; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px;
+              background: #1e293b; border: 1px solid #334155; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Realtime AI Sim Starter</h1>
+    <div>
+      <span class="pill" id="status">disconnected</span>
+      <span class="pill">tick: <span id="tick">0</span></span>
+      <span class="pill">running: <span id="running">false</span></span>
+    </div>
+    <div class="row">
+      <button onclick="api('/api/simulation/start')">Start</button>
+      <button onclick="api('/api/simulation/stop')">Stop</button>
+      <button onclick="api('/api/simulation/reset')">Reset</button>
+      <button onclick="api('/api/recovery/restore')">Restore last good</button>
+    </div>
+    <pre id="state">(waiting for state…)</pre>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+      const $ = (id) => document.getElementById(id);
+      socket.on("connect", () => $("status").textContent = "connected");
+      socket.on("disconnect", () => $("status").textContent = "disconnected");
+      socket.on("state", (state) => {
+        $("tick").textContent = state.tick;
+        $("running").textContent = state.running;
+        $("state").textContent = JSON.stringify(state, null, 2);
+      });
+      async function api(path) {
+        await fetch(path, { method: "POST" });
+      }
+    </script>
+  </body>
+</html>
