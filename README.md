@@ -3,12 +3,10 @@
 
 This contains everything you need to run your app locally.
 
-## 🚀 Live Preview (no install, no deploy)
+## 🚀 Live Preview (no install, no deploy) https://nahom-dotcom-2.onrender.com
 
 Click either badge below to open a working copy of the app in your browser. Both run the full frontend **and** the Express + Socket.IO backend — no Replit server, no Render, no setup.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/nahomshimesl/nahom-dotcom)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/nahomshimesl/nahom-dotcom)
 
 - **StackBlitz** — fastest, no GitHub login needed. Anyone with this README link can click and run the app instantly (each viewer gets their own private sandbox).
 - **GitHub Codespaces** — for repo collaborators only. Spins up a private cloud VM with the app running. Counts against your free Codespaces hours.
