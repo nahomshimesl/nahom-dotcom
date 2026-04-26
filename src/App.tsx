@@ -77,7 +77,47 @@ export default function App() {
   const mutationCooldowns = useRef<Record<string, number>>({});
   const frameCount = useRef(0);
   
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerNodeRef = useRef<HTMLDivElement | null>(null);
+  const containerObserverRef = useRef<ResizeObserver | null>(null);
+  const containerRafRef = useRef<number | null>(null);
+  // Callback ref: measures the simulation container synchronously the
+  // moment it mounts (when user first opens the SIMULATION tab) so the
+  // visualizer renders immediately instead of waiting for a timer.
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    // Tear down any previous attachment first.
+    if (containerObserverRef.current) {
+      containerObserverRef.current.disconnect();
+      containerObserverRef.current = null;
+    }
+    if (containerRafRef.current != null) {
+      cancelAnimationFrame(containerRafRef.current);
+      containerRafRef.current = null;
+    }
+    containerNodeRef.current = node;
+    if (!node) return;
+    const measure = () => {
+      // Bail out if the node was swapped out before this fired.
+      if (containerNodeRef.current !== node) return;
+      const { clientWidth, clientHeight } = node;
+      if (clientWidth > 0 && clientHeight > 0) {
+        setViewSize((prev) =>
+          prev.width === clientWidth && prev.height === clientHeight
+            ? prev
+            : { width: clientWidth, height: clientHeight }
+        );
+      }
+    };
+    measure();
+    containerRafRef.current = requestAnimationFrame(() => {
+      containerRafRef.current = null;
+      measure();
+    });
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure);
+      ro.observe(node);
+      containerObserverRef.current = ro;
+    }
+  }, []);
   const lastStepTime = useRef(0);
   const lastComputeTime = useRef<number | null>(null);
   const predictionCooldown = useRef(0);
@@ -220,56 +260,34 @@ export default function App() {
     const initialAgents = createInitialAgents(50);
     setAgents(initialAgents);
     
-    const updateSize = () => {
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        if (clientWidth > 0 && clientHeight > 0) {
-          console.log(`Viewport updated: ${clientWidth}x${clientHeight}`);
-          setViewSize({
-            width: clientWidth,
-            height: clientHeight,
-          });
-        }
+    // Window-resize fallback (the callback ref attaches a per-element
+    // ResizeObserver which handles the common case).
+    const onWindowResize = () => {
+      const node = containerNodeRef.current;
+      if (!node) return;
+      const { clientWidth, clientHeight } = node;
+      if (clientWidth > 0 && clientHeight > 0) {
+        setViewSize((prev) =>
+          prev.width === clientWidth && prev.height === clientHeight
+            ? prev
+            : { width: clientWidth, height: clientHeight }
+        );
       }
     };
-    
-    // Initial size with a small delay to ensure layout is ready
-    const timer = setTimeout(updateSize, 100);
-    window.addEventListener('resize', updateSize);
+    window.addEventListener('resize', onWindowResize);
 
-    // Observe the simulation container so we re-measure whenever it
-    // becomes visible (e.g. user switches to SIMULATION from ABOUT).
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
-      ro = new ResizeObserver(updateSize);
-      ro.observe(containerRef.current);
-    }
     return () => {
       socketRef.current?.disconnect();
-      clearTimeout(timer);
-      window.removeEventListener('resize', updateSize);
-      ro?.disconnect();
+      window.removeEventListener('resize', onWindowResize);
+      containerObserverRef.current?.disconnect();
+      if (containerRafRef.current != null) {
+        cancelAnimationFrame(containerRafRef.current);
+        containerRafRef.current = null;
+      }
       unsubscribeAuth();
       if (workerRef.current) workerRef.current.terminate();
     };
   }, []);
-
-  // Re-measure when entering SIMULATION (containerRef may have been
-  // unmounted while another tab was active).
-  useEffect(() => {
-    if (activeTab !== 'SIMULATION') return;
-    const measure = () => {
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current;
-        if (clientWidth > 0 && clientHeight > 0) {
-          setViewSize({ width: clientWidth, height: clientHeight });
-        }
-      }
-    };
-    const t1 = setTimeout(measure, 60);
-    const t2 = setTimeout(measure, 250);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [activeTab]);
 
   // 2. Fetch Research Logs
   useEffect(() => {
