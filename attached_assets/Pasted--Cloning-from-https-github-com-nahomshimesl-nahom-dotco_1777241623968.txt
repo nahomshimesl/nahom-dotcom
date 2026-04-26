@@ -1,0 +1,138 @@
+==> Cloning from https://github.com/nahomshimesl/nahom-dotcom
+==> Checking out commit 5ae93e28c5cbe52fb35aabf6fed512432d7df271 in branch main
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 709B done
+#1 DONE 0.0s
+#2 [internal] load metadata for docker.io/library/node:20-slim
+#2 ...
+#3 [auth] library/node:pull render-prod/docker-mirror-repository/library/node:pull token for us-west1-docker.pkg.dev
+#3 DONE 0.0s
+#2 [internal] load metadata for docker.io/library/node:20-slim
+#2 DONE 0.6s
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+#5 [internal] load build context
+#5 transferring context: 869.88kB 0.0s done
+#5 DONE 0.0s
+#6 [builder 1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#6 resolve docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 done
+#6 sha256:3c02fd806613748139b8b8a14a69ae3518a1b0e863c57c35aada3b92ed87fb31 447B / 447B 0.1s done
+#6 sha256:e54aec64c365815cd7b91e718f00ac6e625562b1de09036b38614621b42c7582 3.31kB / 3.31kB 0.1s done
+#6 sha256:64cfb949317c9824fd081d55c59a7225bfe1f650c6395ba42d7ed0ccf51993d2 0B / 1.71MB 0.2s
+#6 sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 0B / 41.42MB 0.2s
+#6 sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 0B / 28.24MB 0.2s
+#6 sha256:64cfb949317c9824fd081d55c59a7225bfe1f650c6395ba42d7ed0ccf51993d2 1.71MB / 1.71MB 0.3s done
+#6 sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 16.78MB / 41.42MB 0.3s
+#6 sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 16.78MB / 28.24MB 0.3s
+#6 sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 41.42MB / 41.42MB 0.5s done
+#6 sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 28.24MB / 28.24MB 0.4s done
+#6 extracting sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4
+#6 extracting sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 0.8s done
+#6 DONE 1.4s
+#6 [builder 1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#6 extracting sha256:e54aec64c365815cd7b91e718f00ac6e625562b1de09036b38614621b42c7582
+#6 extracting sha256:e54aec64c365815cd7b91e718f00ac6e625562b1de09036b38614621b42c7582 0.5s done
+#6 DONE 1.9s
+#6 [builder 1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#6 extracting sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f
+#6 extracting sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 3.8s done
+#6 DONE 5.7s
+#6 [builder 1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#6 extracting sha256:64cfb949317c9824fd081d55c59a7225bfe1f650c6395ba42d7ed0ccf51993d2
+#6 extracting sha256:64cfb949317c9824fd081d55c59a7225bfe1f650c6395ba42d7ed0ccf51993d2 0.3s done
+#6 DONE 6.0s
+#6 [builder 1/6] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#6 extracting sha256:3c02fd806613748139b8b8a14a69ae3518a1b0e863c57c35aada3b92ed87fb31 0.0s done
+#6 DONE 6.0s
+#7 [builder 2/6] WORKDIR /app
+#7 DONE 0.0s
+#8 [builder 3/6] COPY package*.json ./
+#8 DONE 0.0s
+#9 [builder 4/6] RUN npm install
+#9 3.018 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#9 8.156 
+#9 8.156 added 393 packages, and audited 394 packages in 8s
+#9 8.156 
+#9 8.156 42 packages are looking for funding
+#9 8.156   run `npm fund` for details
+#9 8.157 
+#9 8.157 found 0 vulnerabilities
+#9 8.158 npm notice
+#9 8.158 npm notice New major version of npm available! 10.8.2 -> 11.13.0
+#9 8.158 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+#9 8.158 npm notice To update run: npm install -g npm@11.13.0
+#9 8.158 npm notice
+#9 DONE 10.5s
+#10 [builder 5/6] COPY . .
+#10 DONE 0.5s
+#11 [builder 6/6] RUN npm run build
+#11 0.169 
+#11 0.169 > react-example@0.0.0 build
+#11 0.169 > vite build && esbuild server.ts --platform=node --format=cjs --bundle --packages=external --outfile=dist/server.cjs
+#11 0.169 
+#11 0.480 vite v6.4.2 building for production...
+#11 0.552 transforming...
+#11 7.191 ✓ 3146 modules transformed.
+#11 8.165 rendering chunks...
+#11 8.184 computing gzip size...
+#11 8.227 dist/index.html                                0.60 kB │ gzip:   0.38 kB
+#11 8.227 dist/assets/simulation.worker-CvqoKMs7.js      5.53 kB
+#11 8.227 dist/assets/index-Cv1A2SFs.css                65.97 kB │ gzip:  10.48 kB
+#11 8.227 dist/assets/index-CacDoR85.js              1,782.80 kB │ gzip: 470.69 kB
+#11 8.227 
+#11 8.227 (!) Some chunks are larger than 500 kB after minification. Consider:
+#11 8.227 - Using dynamic import() to code-split the application
+#11 8.227 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+#11 8.227 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+#11 8.228 ✓ built in 7.71s
+#11 8.335 
+#11 8.335   dist/server.cjs  28.5kb
+#11 8.335 
+#11 8.335 ⚡ Done in 5ms
+#11 DONE 12.3s
+#12 [stage-1 3/7] COPY --from=builder /app/dist ./dist
+#12 DONE 0.1s
+#13 [stage-1 4/7] COPY --from=builder /app/package*.json ./
+#13 DONE 0.5s
+#14 [stage-1 5/7] COPY --from=builder /app/server.ts ./
+#14 DONE 0.0s
+#15 [stage-1 6/7] COPY --from=builder /app/.env.example ./.env
+#15 DONE 0.0s
+#16 [stage-1 7/7] RUN npm install --omit=dev && npm install -g tsx
+#16 2.714 npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+#16 8.373 
+#16 8.373 added 381 packages, and audited 382 packages in 8s
+#16 8.373 
+#16 8.373 42 packages are looking for funding
+#16 8.373   run `npm fund` for details
+#16 8.374 
+#16 8.374 found 0 vulnerabilities
+#16 8.375 npm notice
+#16 8.375 npm notice New major version of npm available! 10.8.2 -> 11.13.0
+#16 8.375 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+#16 8.375 npm notice To update run: npm install -g npm@11.13.0
+#16 8.375 npm notice
+#16 9.566 
+#16 9.566 added 5 packages in 1s
+#16 9.566 
+#16 9.566 2 packages are looking for funding
+#16 9.566   run `npm fund` for details
+#16 DONE 29.0s
+#17 exporting to docker image format
+#17 exporting layers
+#17 exporting layers 14.3s done
+#17 exporting manifest sha256:d539fc0c6c82f399a5b49f752b714d98d3befd9c8af1a8779993d881cac7cd56 done
+#17 exporting config sha256:eb46bbe616f9c361be09a51b084cd5b5c83aec35eeaf60eaf5428266b7312670 done
+#17 DONE 15.0s
+#18 exporting cache to client directory
+#18 preparing build cache for export
+#18 writing cache image manifest sha256:9a7984c1710303641090f489e26ad9f9c2c3c0b037f36fdd42d8286f560923a2 0.1s done
+#18 DONE 20.0s
+Pushing image to registry...
+Menu
+Upload succeeded
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> Exited with status 1
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
