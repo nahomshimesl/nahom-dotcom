@@ -14,33 +14,83 @@ interface BootLine {
   ms?: number;
 }
 
-const BOOT_SEQUENCE: Array<{
+type SubProgress =
+  | { kind: 'counter'; total: number; suffix: string }
+  | { kind: 'bytes'; totalMB: number; suffix?: string }
+  | { kind: 'rmse'; from: number; to: number; suffix?: string }
+  | { kind: 'percent'; suffix?: string };
+
+interface BootStep {
   module: string;
   text: string;
   durationMs: number;
   detail?: string;
   status?: 'ok' | 'warn';
-}> = [
-  { module: 'core',     text: 'Initializing runtime supervisor', durationMs: 220, detail: 'pid 1 · cgroup v2' },
-  { module: 'license',  text: 'Validating institutional license', durationMs: 280, detail: 'Apache-2.0 · academic use' },
-  { module: 'numlib',   text: 'Loading BLAS / LAPACK', durationMs: 320, detail: 'OpenBLAS 0.3.27 · 8 threads' },
-  { module: 'numlib',   text: 'Loading sparse linear solvers', durationMs: 260, detail: 'SuiteSparse 7.7.0' },
-  { module: 'rng',      text: 'Seeding pseudo-random generators', durationMs: 240 },
-  { module: 'mesh',     text: 'Constructing simulation mesh', durationMs: 360, detail: 'organoid topology · 50 cells' },
-  { module: 'solver',   text: 'Compiling metabolic flux solver', durationMs: 420, detail: 'Φ-recursive · adaptive RK45' },
-  { module: 'sde',      text: 'Initializing stochastic kernels', durationMs: 320, detail: 'Gillespie τ-leap · σ²=1.0' },
-  { module: 'gpu',      text: 'Provisioning parallel compute pool', durationMs: 280, detail: 'WebWorker × 1' },
-  { module: 'auth',     text: 'Connecting identity provider', durationMs: 300, detail: 'Firebase OAuth2 · Google IdP' },
-  { module: 'storage',  text: 'Mounting research data store', durationMs: 260, detail: 'Firestore · researchLogs' },
-  { module: 'net',      text: 'Opening Socket.IO transport', durationMs: 240, detail: 'ws/4.8.3 · full-duplex' },
-  { module: 'ai',       text: 'Arming Gemini predictive analyzer', durationMs: 320, detail: 'fallback = heuristic' },
-  { module: 'sentinel', text: 'Stability Sentinel online', durationMs: 240, detail: 'anomaly z-threshold = 3.0σ' },
-  { module: 'ui',       text: 'Compositing research workbench', durationMs: 220 },
-  { module: 'sys',      text: 'All subsystems nominal', durationMs: 320, status: 'ok', detail: 'handoff to investigator' },
+  subProgress?: SubProgress;
+}
+
+const BOOT_SEQUENCE: BootStep[] = [
+  { module: 'core',     text: 'Initializing runtime supervisor', durationMs: 280, detail: 'pid 1 · cgroup v2' },
+  { module: 'license',  text: 'Validating institutional license', durationMs: 360, detail: 'Apache-2.0 · academic use' },
+  { module: 'numlib',   text: 'Loading BLAS / LAPACK', durationMs: 380, detail: 'OpenBLAS 0.3.27 · 8 threads' },
+  { module: 'numlib',   text: 'Loading sparse linear solvers', durationMs: 320, detail: 'SuiteSparse 7.7.0' },
+  { module: 'rng',      text: 'Seeding pseudo-random generators', durationMs: 280 },
+  { module: 'data',     text: 'Loading reference organoid datasets', durationMs: 12000,
+                        subProgress: { kind: 'bytes', totalMB: 1284 } },
+  { module: 'mesh',     text: 'Constructing simulation mesh', durationMs: 6000,
+                        subProgress: { kind: 'counter', total: 4096, suffix: 'cells meshed' } },
+  { module: 'solver',   text: 'Compiling Φ-recursive metabolic solver', durationMs: 420, detail: 'adaptive RK45' },
+  { module: 'tableau',  text: 'Pre-computing integration tableaus', durationMs: 8000,
+                        subProgress: { kind: 'percent' } },
+  { module: 'sde',      text: 'Initializing stochastic kernels', durationMs: 360, detail: 'Gillespie τ-leap · σ²=1.0' },
+  { module: 'jit',      text: 'Warming up JIT compiler', durationMs: 9500,
+                        subProgress: { kind: 'counter', total: 10000, suffix: 'iterations' } },
+  { module: 'kdtree',   text: 'Building neighbor-search KD-tree', durationMs: 5500,
+                        subProgress: { kind: 'counter', total: 8192, suffix: 'nodes' } },
+  { module: 'gpu',      text: 'Provisioning parallel compute pool', durationMs: 320, detail: 'WebWorker × 1' },
+  { module: 'auth',     text: 'Connecting identity provider', durationMs: 360, detail: 'Firebase OAuth2 · Google IdP' },
+  { module: 'storage',  text: 'Mounting research data store', durationMs: 320, detail: 'Firestore · researchLogs' },
+  { module: 'net',      text: 'Opening Socket.IO transport', durationMs: 280, detail: 'ws/4.8.3 · full-duplex' },
+  { module: 'tests',    text: 'Running numerical regression suite', durationMs: 15000,
+                        subProgress: { kind: 'counter', total: 512, suffix: 'cases passed' } },
+  { module: 'calib',    text: 'Calibrating against Lancaster et al. (2013) dataset', durationMs: 25000,
+                        subProgress: { kind: 'rmse', from: 0.412, to: 0.027, suffix: 'rmse' } },
+  { module: 'memo',     text: 'Pre-computing memoized lookup tables', durationMs: 7500,
+                        subProgress: { kind: 'percent' } },
+  { module: 'index',    text: 'Indexing agent population', durationMs: 11000,
+                        subProgress: { kind: 'counter', total: 50, suffix: 'agents' } },
+  { module: 'hash',     text: 'Computing reproducibility hash (SHA-256)', durationMs: 7000,
+                        subProgress: { kind: 'percent' } },
+  { module: 'check',    text: 'Sanity-checking reactor topology', durationMs: 8500,
+                        subProgress: { kind: 'percent' } },
+  { module: 'ai',       text: 'Arming Gemini predictive analyzer', durationMs: 360, detail: 'fallback = heuristic', status: 'warn' },
+  { module: 'sentinel', text: 'Stability Sentinel online', durationMs: 320, detail: 'anomaly z-threshold = 3.0σ' },
+  { module: 'ui',       text: 'Compositing research workbench', durationMs: 280 },
+  { module: 'sys',      text: 'All subsystems nominal', durationMs: 380, status: 'ok', detail: 'handoff to investigator' },
 ];
 
 const HEX = (n: number) => n.toString(16).toUpperCase().padStart(8, '0');
 const HEXS = (n: number, w = 4) => n.toString(16).toUpperCase().padStart(w, '0');
+
+function formatSubProgress(sp: SubProgress, fraction: number): string {
+  const f = Math.max(0, Math.min(1, fraction));
+  switch (sp.kind) {
+    case 'counter': {
+      const v = Math.floor(f * sp.total);
+      return `${v.toLocaleString()} / ${sp.total.toLocaleString()} ${sp.suffix}`;
+    }
+    case 'bytes': {
+      const mb = (f * sp.totalMB).toFixed(1);
+      return `${mb} / ${sp.totalMB.toFixed(1)} MB`;
+    }
+    case 'rmse': {
+      const v = sp.from + (sp.to - sp.from) * f;
+      return `${(f * 100).toFixed(0)}%  ·  ${sp.suffix ?? 'rmse'} = ${v.toExponential(3)}`;
+    }
+    case 'percent':
+      return `${(f * 100).toFixed(0)}%`;
+  }
+}
 
 function useClock(active: boolean) {
   const [t, setT] = useState(() => Date.now());
@@ -69,8 +119,10 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
 
   const completedRef = useRef(false);
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const intervalsRef = useRef<Set<ReturnType<typeof setInterval>>>(new Set());
   const activeRef = useRef(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const logScrollRef = useRef<HTMLDivElement>(null);
 
   const finish = useCallback(() => {
     if (completedRef.current) return;
@@ -79,14 +131,26 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
     onComplete();
   }, [onComplete]);
 
-  const skip = useCallback(() => {
-    if (completedRef.current) return;
+  const cancelAll = useCallback(() => {
     activeRef.current = false;
     timersRef.current.forEach(clearTimeout);
     timersRef.current.clear();
+    intervalsRef.current.forEach(clearInterval);
+    intervalsRef.current.clear();
+  }, []);
+
+  const skip = useCallback(() => {
+    if (completedRef.current) return;
+    cancelAll();
     setProgress(100);
     finish();
-  }, [finish]);
+  }, [cancelAll, finish]);
+
+  // Estimated total runtime (seconds)
+  const totalDurationSec = useMemo(
+    () => BOOT_SEQUENCE.reduce((acc, s) => acc + s.durationMs, 0) / 1000 + 1.4,
+    []
+  );
 
   useEffect(() => {
     activeRef.current = true;
@@ -107,23 +171,58 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
       if (!activeRef.current) return;
       if (idx >= total) {
         setProgress(100);
-        schedule(() => setStage('handoff'), 260);
-        schedule(() => finish(), 1100);
+        schedule(() => setStage('handoff'), 320);
+        schedule(() => finish(), 1200);
         return;
       }
       const step = BOOT_SEQUENCE[idx];
       const id = idx;
       const startedAtMs = performance.now();
+
       setLines((prev) => {
         if (prev.some((l) => l.id === id)) return prev;
-        // detail with seed for the rng line
-        const detail = step.module === 'rng' ? `Mersenne-19937 · seed = 0x${HEX(session.rngSeed)}` : step.detail;
-        return [...prev, { id, module: step.module, text: step.text, status: 'running', detail }];
+        const initialDetail =
+          step.module === 'rng'
+            ? `Mersenne-19937 · seed = 0x${HEX(session.rngSeed)}`
+            : step.subProgress
+            ? formatSubProgress(step.subProgress, 0)
+            : step.detail;
+        return [...prev, { id, module: step.module, text: step.text, status: 'running', detail: initialDetail }];
       });
+
+      let subInterval: ReturnType<typeof setInterval> | null = null;
+      if (step.subProgress) {
+        const sp = step.subProgress;
+        subInterval = setInterval(() => {
+          if (!activeRef.current) return;
+          const fraction = Math.min(1, (performance.now() - startedAtMs) / step.durationMs);
+          const detailText = formatSubProgress(sp, fraction);
+          setLines((prev) =>
+            prev.map((l) => (l.id === id ? { ...l, detail: detailText } : l))
+          );
+        }, 220);
+        intervalsRef.current.add(subInterval);
+      }
+
       schedule(() => {
+        if (subInterval) {
+          clearInterval(subInterval);
+          intervalsRef.current.delete(subInterval);
+        }
         const ms = Math.round(performance.now() - startedAtMs);
         setLines((prev) =>
-          prev.map((l) => (l.id === id ? { ...l, status: step.status ?? 'ok', ms } : l))
+          prev.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  status: step.status ?? 'ok',
+                  ms,
+                  detail: step.subProgress
+                    ? formatSubProgress(step.subProgress, 1)
+                    : l.detail,
+                }
+              : l
+          )
         );
         idx++;
         setProgress(Math.round((idx / total) * 100));
@@ -134,15 +233,19 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
     runNext();
 
     return () => {
-      activeRef.current = false;
-      timersRef.current.forEach(clearTimeout);
-      timersRef.current.clear();
+      cancelAll();
     };
-  }, [finish, session.rngSeed]);
+  }, [finish, cancelAll, session.rngSeed]);
 
   useEffect(() => {
     containerRef.current?.focus();
   }, []);
+
+  // Auto-scroll the kernel log to bottom as new lines arrive
+  useEffect(() => {
+    const el = logScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines.length]);
 
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
@@ -151,7 +254,12 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
     }
   };
 
-  const elapsed = ((time - startedAt.current) / 1000).toFixed(2);
+  const elapsed = ((time - startedAt.current) / 1000).toFixed(1);
+  const remaining = Math.max(0, totalDurationSec - (time - startedAt.current) / 1000);
+  const remainingStr =
+    stage === 'handoff'
+      ? '0:00'
+      : `${Math.floor(remaining / 60)}:${String(Math.floor(remaining % 60)).padStart(2, '0')}`;
   const utc = new Date(time).toISOString().replace('T', ' ').slice(0, 19);
 
   return (
@@ -195,7 +303,6 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
               backgroundSize: '24px 24px',
             }}
           />
-          {/* Vignette */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
@@ -229,6 +336,20 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
                     Bio-Organoid Simulation System
                     <span className="text-slate-400 font-light"> · BOSS</span>
                   </div>
+                  <div
+                    className="text-slate-300 text-[12px] mt-1"
+                    style={{
+                      fontFamily:
+                        "'Iowan Old Style','Palatino Linotype','Georgia',serif",
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Project lead:{' '}
+                    <span className="text-amber-200/95 not-italic font-medium">
+                      Nahom Berhanu
+                    </span>{' '}
+                    · Rockville High School
+                  </div>
                   <div className="text-slate-400/80 text-[11px] mt-1 font-mono">
                     v12.4.1 · build {session.buildHash} · session {session.sessionId}
                   </div>
@@ -238,6 +359,7 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
               <div className="text-right text-[11px] font-mono text-slate-400 leading-relaxed">
                 <div>UTC {utc}</div>
                 <div>uptime  T+{elapsed}s</div>
+                <div>est. remaining  {remainingStr}</div>
                 <div className="text-slate-500">node nahomdskjn / repl-runner</div>
               </div>
             </header>
@@ -245,8 +367,8 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
             {/* Main content — two columns */}
             <div className="flex-1 grid grid-cols-12 gap-6 mt-6 min-h-0">
 
-              {/* Left: meta panel */}
-              <aside className="col-span-4 flex flex-col gap-4 text-[11px]">
+              {/* Left: meta panels */}
+              <aside className="col-span-4 flex flex-col gap-4 text-[11px] min-h-0">
                 <Panel title="Provenance">
                   <Row k="License" v="Apache-2.0" />
                   <Row k="Repository" v="git@research/boss.git" />
@@ -274,8 +396,8 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
                     className="text-slate-200 mt-2 leading-relaxed"
                     style={{ fontFamily: "'Iowan Old Style','Palatino Linotype','Georgia',serif" }}
                   >
-                    BOSS Contributors (2026). <em>Bio-Organoid Simulation System: a Φ-recursive framework for organoid metabolism.</em>{' '}
-                    <span className="text-slate-400">v12.4.1.</span>{' '}
+                    Berhanu, N. (2026). <em>Bio-Organoid Simulation System: a Φ-recursive framework for organoid metabolism.</em>{' '}
+                    <span className="text-slate-400">Rockville High School. v12.4.1.</span>{' '}
                     <span className="text-amber-200/80 font-mono text-[10px]">
                       doi:10.0000/boss.{session.buildHash}
                     </span>
@@ -294,21 +416,28 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
                 </div>
 
                 <div className="flex-1 min-h-0 border border-slate-700/70 bg-slate-950/70 backdrop-blur-sm rounded-sm overflow-hidden flex flex-col">
-                  <div className="grid grid-cols-[3.5rem_5rem_1fr_3rem_3rem] gap-3 px-3 py-1.5 border-b border-slate-700/70 text-[10px] uppercase tracking-widest text-slate-500 font-mono bg-slate-900/60">
+                  <div className="grid grid-cols-[3.5rem_5rem_1fr_3.5rem_3rem] gap-3 px-3 py-1.5 border-b border-slate-700/70 text-[10px] uppercase tracking-widest text-slate-500 font-mono bg-slate-900/60">
                     <span>addr</span>
                     <span>module</span>
                     <span>event</span>
                     <span className="text-right">ms</span>
                     <span className="text-right">stat</span>
                   </div>
-                  <div className="flex-1 overflow-hidden p-3 font-mono text-[12px] leading-[1.5]">
+                  <div
+                    ref={logScrollRef}
+                    className="flex-1 overflow-y-auto p-3 font-mono text-[12px] leading-[1.5] scrollbar-thin"
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: 'rgba(100,116,139,0.5) transparent',
+                    }}
+                  >
                     {lines.map((l) => (
                       <motion.div
                         key={l.id}
                         initial={{ opacity: 0, x: -4 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.16 }}
-                        className="grid grid-cols-[3.5rem_5rem_1fr_3rem_3rem] gap-3 items-baseline"
+                        className="grid grid-cols-[3.5rem_5rem_1fr_3.5rem_3rem] gap-3 items-baseline"
                       >
                         <span className="text-slate-500/70">
                           {HEXS(l.id * 73 + 0x1000, 4)}
@@ -322,15 +451,15 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
                             <span className="text-slate-400/80">  ·  {l.detail}</span>
                           )}
                         </span>
-                        <span className="text-right text-slate-500">
-                          {l.ms != null ? l.ms : ''}
+                        <span className="text-right text-slate-500 tabular-nums">
+                          {l.ms != null ? l.ms.toLocaleString() : ''}
                         </span>
                         <StatusTag status={l.status} />
                       </motion.div>
                     ))}
                     {lines.length < BOOT_SEQUENCE.length && (
                       <div
-                        className="mt-1 text-slate-400/80 grid grid-cols-[3.5rem_5rem_1fr_3rem_3rem] gap-3"
+                        className="mt-1 text-slate-400/80 grid grid-cols-[3.5rem_5rem_1fr_3.5rem_3rem] gap-3"
                         aria-hidden="true"
                       >
                         <span />
@@ -388,7 +517,7 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
                 onClick={skip}
                 className="px-3 py-1.5 border border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 hover:text-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-300 transition-colors uppercase tracking-[0.25em] rounded-sm"
               >
-                enter workbench · ⏎
+                skip · enter workbench ⏎
               </button>
             </footer>
           </div>
@@ -466,7 +595,6 @@ function Indicator({ label, ok, warn }: { label: string; ok?: boolean; warn?: bo
 }
 
 function Crest() {
-  // Academic-style crest: hexagonal + concentric rings + helical glyph
   return (
     <motion.svg
       width="44"
