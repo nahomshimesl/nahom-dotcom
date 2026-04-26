@@ -66,3 +66,4 @@ externalPort = 3000
 deploymentTarget = "gce"
 run = ["npm", "run", "start"]
 build = ["npm", "run", "build"]
+ignorePorts = true
