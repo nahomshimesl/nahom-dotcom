@@ -69,3 +69,24 @@ Continuous, deterministic, in-browser early-warning system that complements the 
 - **Panel**: `src/components/CollapseForecast.tsx` — renders risk %, ETA, slope, indicators, and human-readable warnings; color-codes by severity.
 - **Wiring**: a single `useEffect` in `App.tsx` re-runs the forecaster whenever `metrics.step` advances. Panel renders inside the HEALTH tab (above the existing `HealthDashboard`).
 - No new dependencies, no API calls — runs in pure JS every tick.
+
+
+## External Postgres (additive — Apr 2026)
+Optional persistence layer. Plug in any Postgres connection string by setting `DATABASE_URL` (also accepts `POSTGRES_URL` / `PG_CONNECTION_STRING`).
+
+- **Service**: `services/db.ts` — lazy `Pool` (max 5 conns, 5 s connect timeout, auto-SSL when remote/prod). Exposes `isConfigured()`, `getPool()`, `migrate()`, `status()`, `query()`, `shutdown()`. Migration is idempotent (`CREATE TABLE IF NOT EXISTS`) and runs once on first request.
+- **Schema** (auto-created on boot if `DATABASE_URL` set):
+  - `simulation_runs (id, started_at, ended_at, final_step, final_health, agent_count, notes JSONB)`
+  - `research_logs (id, run_id → simulation_runs, ts, severity, message)`
+- **Endpoints** (all on `server.ts`):
+  - `GET  /api/db/status` — public; returns `{configured, connected, migrated, serverVersion, databaseSizeBytes, databaseSizePretty}`
+  - `POST /api/db/runs` — auth-protected; persists a finished simulation snapshot
+  - `GET  /api/db/runs?limit=N` — auth-protected; lists most-recent runs
+- **Behavior without `DATABASE_URL`**: app boots normally, persistence endpoints return `503 { ok:false, error: "Database not configured" }`. Status endpoint returns `{configured:false}`.
+- **For ~10 GB capacity**: Neon Scale plan, Supabase Pro (8 GB included + add-on), Render Postgres Pro. Connection string format works identically — paste it into the `DATABASE_URL` env var on Render (or `.env` locally).
+
+## Mobile responsiveness (additive — Apr 2026)
+- `App.tsx`: vertical sidebar hidden below `md` (top tab nav covers same routes); header stacks (logo + title above nav); Researcher name + System Entropy badge hidden below `lg`; bottom stats grid `2 cols → 4 cols` at `md`; sim tab padding `p-4 → p-8`; visualizer min-height `320px → 450px`.
+- `SystemBoot.tsx`: meta panels (Provenance / Reproducibility / Citation) hidden below `md` so kernel log + progress + skip button fit one mobile viewport; header stacks; footer wraps; skip button full-width on phone.
+- `index.css`: added `.no-scrollbar` utility (was referenced in two places but undefined).
+- `main.tsx`: added `?showBoot=1` URL param to force-show the boot screen (clears `boss_booted` sessionStorage) — useful for verifying mobile layout without a fresh tab.

@@ -6,6 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { Sentinel } from "./services/sentinel.js";
+import * as db from "./services/db.js";
 
 dotenv.config();
 
@@ -119,6 +120,69 @@ async function startServer() {
     return s.length > max ? s.slice(0, max) : s;
   };
   const ALLOWED_SEVERITY = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+
+  // ───────────── External Database (optional) ─────────────
+  // Plug in any Postgres connection string (Neon / Supabase / Render / RDS / …)
+  // by setting DATABASE_URL. The app boots fine without it; endpoints below
+  // surface a clear "not configured" status when the env var is missing.
+  if (db.isConfigured()) {
+    db.migrate()
+      .then(() => console.log("[db] connected — schema migrated"))
+      .catch((err) => console.error("[db] migration failed:", err.message));
+  } else {
+    console.log("[db] DATABASE_URL not set — persistence endpoints disabled");
+  }
+
+  app.get("/api/db/status", async (_req, res) => {
+    try {
+      res.json(await db.status());
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message });
+    }
+  });
+
+  // Persist a completed simulation snapshot. Auth-protected.
+  app.post("/api/db/runs", authMiddleware, async (req, res) => {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ ok: false, error: "Database not configured" });
+    }
+    try {
+      const { final_step, final_health, agent_count, notes } = req.body ?? {};
+      const r = await db.query<{ id: string; started_at: string }>(
+        `INSERT INTO simulation_runs (ended_at, final_step, final_health, agent_count, notes)
+         VALUES (NOW(), $1, $2, $3, $4)
+         RETURNING id, started_at`,
+        [
+          Number.isFinite(final_step) ? Number(final_step) : null,
+          Number.isFinite(final_health) ? Number(final_health) : null,
+          Number.isFinite(agent_count) ? Number(agent_count) : null,
+          notes && typeof notes === "object" ? JSON.stringify(notes) : null,
+        ],
+      );
+      res.json({ ok: true, run: r.rows[0] });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message });
+    }
+  });
+
+  app.get("/api/db/runs", authMiddleware, async (req, res) => {
+    if (!db.isConfigured()) {
+      return res.status(503).json({ ok: false, error: "Database not configured" });
+    }
+    try {
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const r = await db.query(
+        `SELECT id, started_at, ended_at, final_step, final_health, agent_count, notes
+           FROM simulation_runs
+           ORDER BY started_at DESC
+           LIMIT $1`,
+        [limit],
+      );
+      res.json({ ok: true, runs: r.rows });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e?.message });
+    }
+  });
 
   // Biological Simulation Endpoint
   app.post("/api/auth/verify", authMiddleware, (req, res) => {

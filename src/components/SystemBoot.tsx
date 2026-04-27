@@ -312,7 +312,7 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
             }}
           />
 
-          <div className="relative h-full w-full flex flex-col px-4 md:px-10 pt-4 md:pt-8 pb-4 md:pb-6 max-w-[1280px] mx-auto overflow-y-auto">
+          <div className="relative h-full w-full flex flex-col px-4 md:px-10 pt-4 md:pt-8 pb-4 md:pb-6 max-w-[1280px] mx-auto md:overflow-y-auto">
 
             {/* Top bar — institutional masthead */}
             <header className="flex flex-col md:flex-row md:items-start md:justify-between border-b border-slate-700/60 pb-4 gap-3">
@@ -367,8 +367,8 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
             {/* Main content — two columns on desktop, stacked on phone */}
             <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 mt-4 md:mt-6 md:min-h-0">
 
-              {/* Left: meta panels */}
-              <aside className="md:col-span-4 flex flex-col gap-4 text-[11px] md:min-h-0">
+              {/* Left: meta panels — hidden on phones so the kernel log + progress + skip button fit in one viewport */}
+              <aside className="hidden md:flex md:col-span-4 flex-col gap-4 text-[11px] md:min-h-0">
                 <Panel title="Provenance">
                   <Row k="License" v="Apache-2.0" />
                   <Row k="Repository" v="git@research/boss.git" />
@@ -406,7 +406,7 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
               </aside>
 
               {/* Right: kernel init log */}
-              <section className="md:col-span-8 flex flex-col md:min-h-0 min-h-[400px]">
+              <section className="md:col-span-8 flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-2 font-mono">
                   <span>kernel initialization</span>
                   <span className="flex items-center gap-2">
@@ -504,8 +504,8 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
             </div>
 
             {/* Footer */}
-            <footer className="mt-6 pt-4 border-t border-slate-700/60 flex items-end justify-between text-[10px] uppercase tracking-[0.25em] text-slate-500 font-mono">
-              <div className="flex gap-5">
+            <footer className="mt-4 md:mt-6 pt-3 md:pt-4 border-t border-slate-700/60 flex flex-col md:flex-row md:items-end md:justify-between gap-3 text-[10px] uppercase tracking-[0.25em] text-slate-500 font-mono">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 md:gap-5">
                 <Indicator label="license" ok />
                 <Indicator label="numerics" ok />
                 <Indicator label="storage" ok />
@@ -515,7 +515,7 @@ export default function SystemBoot({ onComplete }: SystemBootProps) {
               <button
                 type="button"
                 onClick={skip}
-                className="px-3 py-1.5 border border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 hover:text-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-300 transition-colors uppercase tracking-[0.25em] rounded-sm"
+                className="w-full md:w-auto px-3 py-2 md:py-1.5 border border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 hover:text-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-300 transition-colors uppercase tracking-[0.25em] rounded-sm"
               >
                 skip · enter workbench ⏎
               </button>
