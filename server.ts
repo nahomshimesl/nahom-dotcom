@@ -82,20 +82,20 @@ async function startServer() {
 
   app.use(express.json({ limit: "256kb" }));
 
-  // In production refuse to boot without a usable operator allow-list. The
-  // previous APP_PASSWORD-only mode left a single shared secret with no
-  // identity or audit trail; we now require explicit per-user accounts.
+  // Warn (don't fail) when no operator identities are configured. Operator
+  // endpoints will still 401 until someone is added via OPERATOR_EMAILS /
+  // OPERATOR_UIDS / OWNER_EMAILS or the in-app Admin tab, but the server
+  // is allowed to boot so public endpoints (status, sentinel report, etc.)
+  // remain reachable.
   if (
-    process.env.NODE_ENV === "production" &&
     OPERATOR_EMAILS.size === 0 &&
     OPERATOR_UIDS.size === 0 &&
     OWNER_EMAILS.size === 0
   ) {
-    console.error(
-      "FATAL: OPERATOR_EMAILS, OPERATOR_UIDS, or OWNER_EMAILS must be set in production. " +
-        "Comma-separated list of Firebase Auth identities allowed to access operator endpoints. See DEPLOY.md.",
+    console.warn(
+      "[auth] No operator allow-list configured (OPERATOR_EMAILS / OPERATOR_UIDS / OWNER_EMAILS all empty). " +
+        "Operator endpoints will reject all requests until at least one identity is added. See DEPLOY.md.",
     );
-    process.exit(1);
   }
 
   const OPERATOR_ROOM = "operators";
